@@ -1,0 +1,13 @@
+{
+  "id": "pedrocanoas/tcc-livros-blip-finetune",
+  "title": "TCC Livros BLIP Finetune",
+  "code_file": "kaggle_notebook.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": ["pedrocanoas/fotos-livros"],
+  "competition_sources": [],
+  "kernel_sources": []
+}

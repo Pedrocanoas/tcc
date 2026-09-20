@@ -148,9 +148,33 @@ kaggle kernels output <seu-usuario>/<slug-do-notebook> -p ./kaggle-output
 Por fim, extraia o `checkpoint_best.zip` de forma que o resultado fique em
 `model/checkpoints/best/` — é o caminho que `infer.py` usa por padrão.
 
+### 5. Automação: disparar o treino a cada push (GitHub Actions)
+
+`.github/workflows/kaggle-train.yml` (na raiz do repo) roda a cada push que
+mexer em `model/**`: instala o `kaggle` CLI e faz `kaggle kernels push -p
+model/`, que sobe `kaggle_notebook.ipynb` (usando `model/kernel-metadata.json`
+pra configurar GPU/Internet/dataset) e já dispara a execução no Kaggle. Não
+precisa mais criar o notebook manualmente pela UI — o primeiro push cria o
+kernel `pedrocanoas/tcc-livros-blip-finetune` automaticamente.
+
+Só falta um passo, feito uma única vez pela UI do GitHub (não dá pra
+automatizar, é uma chave secreta):
+
+1. Em [kaggle.com/settings](https://www.kaggle.com/settings) → **API** →
+   **Create New Token** → baixa um `kaggle.json` com `username` e `key`.
+2. No GitHub: **Settings → Secrets and variables → Actions → New repository
+   secret**, cria duas:
+   - `KAGGLE_USERNAME` = o `username` do `kaggle.json`
+   - `KAGGLE_KEY` = o `key` do `kaggle.json`
+
+Depois disso, todo `git push` que altere `model/` dispara um novo treino
+sozinho (consome cota de GPU do Kaggle a cada vez — evite commits triviais
+nessa pasta). Acompanhe o progresso em kaggle.com → **Your Work → Notebooks**;
+o download do checkpoint continua manual (passo 4 acima).
+
 ## Próximos passos
 
-- Rodar um treino completo de verdade e avaliar a qualidade das legendas
-  geradas (hoje só foi validado que o pipeline roda, não a qualidade).
-- Expor `infer.py` como endpoint HTTP para o `backend/` chamar
-  (`POST /api/livros/gerar-descricao` ou similar).
+- Rodar um treino completo com `--max-length 128` e avaliar se a legenda
+  para de sair cortada e se a qualidade melhorou (`src/evaluate.py`).
+- Considerar um processo Python persistente por trás do endpoint do
+  `backend/` (hoje ele recarrega o modelo do zero a cada request, ~15-20s).
