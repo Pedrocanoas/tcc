@@ -19,6 +19,7 @@ const photos = defineModel('photos', { default: () => [] })
 
 defineProps({
   generating: { type: Boolean, default: false },
+  generationError: { type: String, default: '' },
 })
 
 const emit = defineEmits(['submit', 'photos-added'])
@@ -180,6 +181,9 @@ function removePhoto(index) {
         </ul>
         <p v-if="generating" class="mt-1 text-xs font-medium text-amber-600">
           Gerando descrição a partir das fotos…
+        </p>
+        <p v-else-if="generationError" class="mt-1 text-xs font-medium text-red-600">
+          {{ generationError }}
         </p>
       </div>
 

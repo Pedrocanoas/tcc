@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import BookForm from '@/components/BookForm.vue'
+import { gerarDescricao } from '@/lib/api.js'
 
 const photos = ref([])
 const form = ref({
@@ -15,14 +16,15 @@ const form = ref({
   descricao: '',
 })
 const generating = ref(false)
+const generationError = ref('')
 
 async function handlePhotosAdded() {
   generating.value = true
+  generationError.value = ''
   try {
-    // TODO: enviar `photos` para a API de geração de descrição quando o
-    // modelo/agente estiver disponível. Por enquanto é apenas um placeholder.
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    form.value.descricao = 'Geração automática de descrição ainda não implementada.'
+    form.value.descricao = await gerarDescricao(photos.value)
+  } catch (err) {
+    generationError.value = err.message
   } finally {
     generating.value = false
   }
@@ -40,6 +42,7 @@ function handleSubmit() {
       v-model:form="form"
       v-model:photos="photos"
       :generating="generating"
+      :generation-error="generationError"
       @photos-added="handlePhotosAdded"
       @submit="handleSubmit"
     />
