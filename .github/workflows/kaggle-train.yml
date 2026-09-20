@@ -6,6 +6,7 @@ on:
     paths:
       - "model/**"
       - ".github/workflows/kaggle-train.yml"
+  workflow_dispatch: {}
 
 jobs:
   push-kernel:
