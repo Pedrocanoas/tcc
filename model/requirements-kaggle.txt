@@ -1,0 +1,4 @@
+# O Kaggle já fornece torch com suporte CUDA. Não reinstale torch aqui.
+transformers>=4.46
+pillow>=10.4
+accelerate>=1.1

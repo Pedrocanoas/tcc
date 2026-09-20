@@ -18,6 +18,9 @@ checkpoints/
 runs/
 wandb/
 
+# Artefatos de upload pro Kaggle (gerados sob demanda, não versionar)
+*.zip
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/
