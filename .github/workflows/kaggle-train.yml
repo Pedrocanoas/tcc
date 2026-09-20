@@ -20,8 +20,16 @@ jobs:
 
       - run: pip install kaggle
 
-      - name: Push e disparar o kernel no Kaggle
+      # kaggle-api 2.x não lê mais KAGGLE_USERNAME/KAGGLE_KEY como env var direto,
+      # só o arquivo ~/.kaggle/kaggle.json (ou o novo KAGGLE_API_TOKEN).
+      - name: Configurar credenciais do Kaggle
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p ~/.kaggle
+          printf '{"username":"%s","key":"%s"}' "$KAGGLE_USERNAME" "$KAGGLE_KEY" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Push e disparar o kernel no Kaggle
         run: kaggle kernels push -p model/
