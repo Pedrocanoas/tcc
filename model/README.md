@@ -57,7 +57,7 @@ isso existe justamente para rodar o treino em outro lugar sem mexer no código:
 
 | Variável | Local (default) | No Kaggle |
 |---|---|---|
-| `TCC_DATASET_RAW_DIR` | `dataset/raw` | `/kaggle/input/<dataset-fotos>/raw` |
+| `TCC_DATASET_RAW_DIR` | `dataset/raw` | `/kaggle/input/<dataset-fotos>` |
 | `TCC_DATASET_PROCESSED_DIR` | `dataset/processed` | `/kaggle/working/processed` |
 | `TCC_CHECKPOINTS_DIR` | `model/checkpoints` | `/kaggle/working/checkpoints` |
 
@@ -69,6 +69,13 @@ apontar para `/kaggle/working`.
 ```sh
 cd dataset && zip -r raw.zip raw
 ```
+
+> **Cuidado ao atualizar via `kaggle datasets version`:** se usar uma
+> *junction*/symlink apontando pra `dataset/raw` numa pasta de staging (pra
+> não duplicar os dados), o zip da própria CLI do Kaggle "achata" o conteúdo
+> do link — os livros acabam na raiz do dataset (`livro001/...`), sem o
+> prefixo `raw/`. Se isso acontecer, é só tirar o `/raw` do
+> `TCC_DATASET_RAW_DIR`/`--raw-dir` (em vez de re-subir tudo de novo).
 
 `dataset/raw` tem ~32 MB — cabe tranquilo num Dataset do Kaggle. Em
 kaggle.com → **Create → New Dataset** → upload do `raw.zip` (ele extrai
@@ -101,13 +108,13 @@ os caminhos corretos e comentários explicando cada passo. Resumo do que ele faz
 %cd /kaggle/working/model
 
 import os
-os.environ["TCC_DATASET_RAW_DIR"] = "/kaggle/input/datasets/<usuário>/<dataset-fotos>/raw"
+os.environ["TCC_DATASET_RAW_DIR"] = "/kaggle/input/datasets/<usuário>/<dataset-fotos>"
 os.environ["TCC_DATASET_PROCESSED_DIR"] = "/kaggle/working/processed"
 os.environ["TCC_CHECKPOINTS_DIR"] = "/kaggle/working/checkpoints"
 
 # célula 3 — gera os manifestos e inicia o fine-tuning
 !python kaggle_train.py \
-  --raw-dir /kaggle/input/datasets/<usuário>/<dataset-fotos>/raw \
+  --raw-dir /kaggle/input/datasets/<usuário>/<dataset-fotos> \
   --epochs 20 \
   --batch-size 8 \
   --max-length 128
