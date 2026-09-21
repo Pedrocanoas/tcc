@@ -19,3 +19,39 @@ export async function gerarDescricao(photos) {
 
   return data.descricoes[0]?.descricao ?? ''
 }
+
+/**
+ * Tenta ler um código de barras de ISBN nas fotos e, se achar, busca os
+ * metadados oficiais do livro (título/autor/editora/ano). Retorna null se
+ * nenhuma foto tiver um código legível ou o ISBN não for encontrado.
+ */
+export async function detectarIsbn(photos) {
+  const body = new FormData()
+  for (const { file } of photos) {
+    body.append('fotos', file)
+  }
+
+  const response = await fetch(`${API_URL}/livros/detectar-isbn`, { method: 'POST', body })
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Falha ao ler código de barras.')
+  }
+
+  return data.metadados
+}
+
+/**
+ * Busca os metadados oficiais do livro a partir de um ISBN digitado
+ * manualmente. Retorna null se o ISBN não for encontrado.
+ */
+export async function buscarPorIsbn(isbn) {
+  const response = await fetch(`${API_URL}/livros/isbn/${encodeURIComponent(isbn)}`)
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.error ?? 'Falha ao buscar metadados do ISBN.')
+  }
+
+  return data.metadados
+}
