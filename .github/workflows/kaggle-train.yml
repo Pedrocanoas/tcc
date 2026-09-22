@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - "model/**"
+      - "!model/README.md"
       - ".github/workflows/kaggle-train.yml"
   workflow_dispatch: {}
 

@@ -11,11 +11,20 @@ inferir da foto.
 
 ## Por que fine-tuning e não treinar do zero
 
-O dataset tem 401 livros / ~740 fotos — pequeno demais para treinar um
-modelo de captioning do zero (datasets desse tipo costumam ter 100k+
-imagens). Por padrão o encoder de visão do BLIP fica **congelado** e só o
-decoder de texto é ajustado (menos parâmetros para treinar, menor risco de
+O dataset tem ~1.918 livros / ~2.975 fotos (2.962 exemplos imagem+legenda,
+2.653 treino / 309 validação) — ainda pequeno pra treinar um modelo de
+captioning do zero (datasets desse tipo costumam ter 100k+ imagens). Por
+padrão o encoder de visão do BLIP fica **congelado** e só o decoder de
+texto é ajustado (menos parâmetros para treinar, menor risco de
 overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
+
+> **Limitação conhecida:** mesmo com ~1.918 livros, a avaliação
+> (`src/evaluate.py`) mostra o modelo gerando legendas bem parecidas entre
+> livros com condições bem diferentes — indício de que o encoder congelado
+> não está diferenciando as fotos o suficiente. Se persistir depois do
+> retreino com o dataset maior, o próximo passo é tentar
+> `--no-freeze-vision` (mais lento, mais parâmetros, mas usa a imagem de
+> verdade em vez de aprender só o "estilo" médio do texto).
 
 ## Setup
 
@@ -43,11 +52,27 @@ py -m venv .venv
 
 # 3. inferência (usa checkpoints/best se existir, senão cai no modelo base)
 .venv/Scripts/python.exe -m src.infer caminho/para/foto1.jpg caminho/para/foto2.jpg
+
+# 4. avaliação: compara gerado vs. legenda original do vendedor
+#    (--split val usa livros que o modelo nunca viu no treino)
+.venv/Scripts/python.exe -m src.evaluate --split val --limit 10
 ```
 
 `train.py --limit-train N --epochs 1` é útil para testar rapidamente se o
 pipeline roda antes de disparar um treino completo (que em CPU deve demorar
 — vale rodar em background).
+
+### Outros scripts em `src/`
+
+- **`serve.py`** — processo persistente de inferência (carrega o modelo
+  uma vez, atende pedidos via stdin/stdout). É o que o `backend/` usa por
+  trás do endpoint `/api/livros/gerar-descricao`, em vez de rodar
+  `infer.py` do zero a cada request (~15-20s de carga de modelo evitados).
+  Não roda direto por conta própria, é chamado pelo backend.
+- **`detect_barcode.py`** — lê um código de barras EAN-13/ISBN numa foto
+  (`pyzbar`), sem depender de nenhum checkpoint treinado. Usado pelo
+  autofill de título/autor/editora do formulário (`backend/`).
+  `.venv/Scripts/python.exe -m src.detect_barcode foto.jpg`.
 
 ## Treinando no Kaggle
 
@@ -77,42 +102,44 @@ cd dataset && zip -r raw.zip raw
 > prefixo `raw/`. Se isso acontecer, é só tirar o `/raw` do
 > `TCC_DATASET_RAW_DIR`/`--raw-dir` (em vez de re-subir tudo de novo).
 
-`dataset/raw` tem ~32 MB — cabe tranquilo num Dataset do Kaggle. Em
-kaggle.com → **Create → New Dataset** → upload do `raw.zip` (ele extrai
-sozinho; vai ficar acessível em `/kaggle/input/<nome-do-dataset>/raw/...`).
+`dataset/raw` tem hoje ~310 MB — ainda cabe tranquilo num Dataset do Kaggle
+(limite gratuito é bem maior). Em kaggle.com → **Create → New Dataset** →
+upload do `raw.zip` (ele extrai sozinho; fica acessível em
+`/kaggle/input/<nome-do-dataset>/raw/...`). Pra atualizar depois, veja o
+aviso da *junction* acima.
 
-### 2. Subir o código
+### 2. Código
 
-Mais simples: zipar `model/` (só tem `src/`, `requirements.txt`, `README.md`
-— `.venv` e `checkpoints` são gitignored, não faz sentido subir) e criar um
-segundo Kaggle Dataset com ele. Alternativa, se o repo já estiver no GitHub:
-`!git clone <url-do-repo>` direto na primeira célula do notebook.
+Não precisa de um segundo Dataset pro código: o notebook clona o repo
+direto do GitHub (`!git clone`) na primeira célula, então sempre usa a
+versão mais recente do `main` sem precisar re-subir nada manualmente.
 
 ### 3. Notebook
 
-Criar o notebook, **Add Data** apontando os dois datasets, e em
+Criar o notebook, **Add Input** apontando o dataset das fotos, e em
 **Settings** (barra lateral): Accelerator → GPU (T4 x2 ou P100), Internet →
-On (necessário para baixar os pesos do BLIP do Hugging Face na primeira
-execução).
+On (necessário tanto pro `git clone` quanto pra baixar os pesos do BLIP do
+Hugging Face na primeira execução).
 
 Use o notebook pronto em [`kaggle_notebook.ipynb`](kaggle_notebook.ipynb) (**File →
 Upload Notebook** no Kaggle) em vez de montar as células manualmente — já tem
 os caminhos corretos e comentários explicando cada passo. Resumo do que ele faz:
 
 ```python
-# célula 1 — não reinstale o torch: o Kaggle já vem com build CUDA pronta
-!pip install -q -r /kaggle/input/datasets/<usuário>/<dataset-codigo>/model/requirements-kaggle.txt
+# célula 1 — clona o código direto do GitHub (sempre pega a versão mais recente do main)
+!git clone --depth 1 https://github.com/Pedrocanoas/tcc.git /kaggle/working/repo
+%cd /kaggle/working/repo/model
 
-# célula 2
-!cp -r /kaggle/input/datasets/<usuário>/<dataset-codigo>/model /kaggle/working/model
-%cd /kaggle/working/model
+# célula 2 — não reinstale o torch: o Kaggle já vem com build CUDA pronta
+!pip install -q -r requirements-kaggle.txt
 
+# célula 3
 import os
 os.environ["TCC_DATASET_RAW_DIR"] = "/kaggle/input/datasets/<usuário>/<dataset-fotos>"
 os.environ["TCC_DATASET_PROCESSED_DIR"] = "/kaggle/working/processed"
 os.environ["TCC_CHECKPOINTS_DIR"] = "/kaggle/working/checkpoints"
 
-# célula 3 — gera os manifestos e inicia o fine-tuning
+# célula 4 — gera os manifestos e inicia o fine-tuning
 !python kaggle_train.py \
   --raw-dir /kaggle/input/datasets/<usuário>/<dataset-fotos> \
   --epochs 20 \
@@ -134,7 +161,7 @@ legendas do dataset durante o treino — o modelo nunca via o fim de boa parte
 das frases e, na inferência, raramente aprendia a parar de gerar texto (as
 legendas saíam cortadas no meio). 128 cobre ~91% das legendas por inteiro.
 
-Com 743 imagens numa T4, isso deve rodar em minutos, bem dentro da cota
+Com ~2.975 imagens numa T4, isso deve rodar em minutos, bem dentro da cota
 gratuita do Kaggle (não precisa se preocupar com o limite de sessão).
 
 ### 4. Trazer o checkpoint de volta
@@ -167,12 +194,13 @@ kernel `pedrocanoas/tcc-livros-blip-finetune` automaticamente.
 Só falta um passo, feito uma única vez pela UI do GitHub (não dá pra
 automatizar, é uma chave secreta):
 
-1. Em [kaggle.com/settings](https://www.kaggle.com/settings) → **API** →
-   **Create New Token** → baixa um `kaggle.json` com `username` e `key`.
+1. Em [kaggle.com/settings/api](https://www.kaggle.com/settings/api) →
+   **Generate New Token** → copia o token (string única, mostrada uma vez só).
 2. No GitHub: **Settings → Secrets and variables → Actions → New repository
-   secret**, cria duas:
-   - `KAGGLE_USERNAME` = o `username` do `kaggle.json`
-   - `KAGGLE_KEY` = o `key` do `kaggle.json`
+   secret** → `KAGGLE_API_TOKEN` = o token copiado.
+
+(A CLI `kaggle` 2.x não aceita mais usuário+chave via env var — só esse
+token único, ou o arquivo `~/.kaggle/access_token`.)
 
 Depois disso, todo `git push` que altere `model/` dispara um novo treino
 sozinho (consome cota de GPU do Kaggle a cada vez — evite commits triviais
@@ -181,7 +209,8 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- Rodar um treino completo com `--max-length 128` e avaliar se a legenda
-  para de sair cortada e se a qualidade melhorou (`src/evaluate.py`).
-- Considerar um processo Python persistente por trás do endpoint do
-  `backend/` (hoje ele recarrega o modelo do zero a cada request, ~15-20s).
+- Avaliar o checkpoint treinado com o dataset expandido (~1.918 livros) e
+  ver se o `--max-length 128` resolveu o corte de legenda e se o volume
+  maior de dados reduziu a repetição de legendas genéricas entre livros
+  diferentes (`src/evaluate.py`).
+- Se a repetição persistir, tentar `--no-freeze-vision` (ver nota acima).
