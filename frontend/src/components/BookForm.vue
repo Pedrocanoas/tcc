@@ -401,41 +401,109 @@ function removePhoto(index) {
         </label>
       </div>
 
-      <div v-if="precosLoading || precosError || precos" class="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-        <p v-if="precosLoading" class="text-amber-600">Buscando preços de anúncios parecidos…</p>
-        <p v-else-if="precosError" class="text-red-600">{{ precosError }}</p>
-        <p v-else-if="precos && precos.quantidade === 0" class="text-slate-500">
+      <div
+        v-if="precosLoading || precosError || precos"
+        class="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4"
+      >
+        <p v-if="precosLoading" class="flex items-center gap-2 text-sm text-amber-600">
+          <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M21 12a9 9 0 0 0-9-9V0a12 12 0 0 1 12 12h-3Z"
+            />
+          </svg>
+          Buscando preços de anúncios parecidos…
+        </p>
+
+        <p v-else-if="precosError" class="flex items-center gap-2 text-sm text-red-600">
+          <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 9v3.75m-9.303 3.376C1.83 17.933 2.914 20 4.767 20h14.466c1.853 0 2.937-2.067 1.837-3.874L13.837 4.126c-.923-1.51-3.023-1.51-3.946 0L2.13 16.126ZM12 15.75h.007v.008H12v-.008Z"
+            />
+          </svg>
+          {{ precosError }}
+        </p>
+
+        <p v-else-if="precos && precos.quantidade === 0" class="flex items-center gap-2 text-sm text-slate-500">
+          <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+            />
+          </svg>
           Nenhum anúncio parecido encontrado na Estante Virtual pra comparar preço.
         </p>
-        <div v-else-if="precos" class="flex flex-wrap items-center gap-x-6 gap-y-1">
-          <span class="font-medium text-slate-700">
-            {{ precos.quantidade }} anúncio{{ precos.quantidade > 1 ? "s" : "" }} parecido{{
-              precos.quantidade > 1 ? "s" : ""
-            }}:
-          </span>
-          <span>
-            menor <strong class="text-emerald-700">{{ formatarPreco(precos.menor.preco) }}</strong>
+
+        <div v-else-if="precos">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" d="M4 20V10M10 20V4M16 20v-7M4 20h16" />
+              </svg>
+              {{ precos.quantidade }} anúncio{{ precos.quantidade > 1 ? "s" : "" }} parecido{{
+                precos.quantidade > 1 ? "s" : ""
+              }}
+              na Estante Virtual
+            </div>
             <a
-              :href="precos.menor.url"
+              :href="precos.buscaUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="ml-1 text-blue-700 underline hover:text-blue-900"
-              >ver anúncio</a
+              class="shrink-0 text-xs font-medium text-blue-700 underline hover:text-blue-900"
+              >ver todos</a
             >
-          </span>
-          <span>
-            média <strong>{{ formatarPreco(precos.media) }}</strong>
-          </span>
-          <span>
-            maior <strong class="text-amber-700">{{ formatarPreco(precos.maior.preco) }}</strong>
-            <a
-              :href="precos.maior.url"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="ml-1 text-blue-700 underline hover:text-blue-900"
-              >ver anúncio</a
-            >
-          </span>
+          </div>
+
+          <div class="mt-3 grid grid-cols-3 divide-x divide-slate-200">
+            <div class="flex flex-col gap-1 pr-3">
+              <div class="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v14m0 0-5-5m5 5 5-5" />
+                </svg>
+                Menor preço
+              </div>
+              <div class="text-lg font-semibold text-slate-900">{{ formatarPreco(precos.menor.preco) }}</div>
+              <a
+                :href="precos.menor.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="w-fit text-xs text-blue-700 underline hover:text-blue-900"
+                >ver anúncio</a
+              >
+            </div>
+
+            <div class="flex flex-col gap-1 px-3">
+              <div class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" d="M6 12h12" />
+                </svg>
+                Preço médio
+              </div>
+              <div class="text-lg font-semibold text-slate-900">{{ formatarPreco(precos.media) }}</div>
+            </div>
+
+            <div class="flex flex-col gap-1 pl-3">
+              <div class="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V6m0 0-5 5m5-5 5 5" />
+                </svg>
+                Maior preço
+              </div>
+              <div class="text-lg font-semibold text-slate-900">{{ formatarPreco(precos.maior.preco) }}</div>
+              <a
+                :href="precos.maior.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="w-fit text-xs text-blue-700 underline hover:text-blue-900"
+                >ver anúncio</a
+              >
+            </div>
+          </div>
         </div>
       </div>
 
