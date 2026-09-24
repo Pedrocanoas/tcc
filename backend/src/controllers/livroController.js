@@ -48,13 +48,13 @@ export async function buscarPorIsbn(req, res, next) {
 }
 
 export async function buscarPrecos(req, res, next) {
-  const { titulo, autor } = req.query
+  const { titulo, autor, condicao } = req.query
   if (!titulo) {
     return res.status(400).json({ error: 'Informe o título pra buscar preços.' })
   }
 
   try {
-    const resultado = await buscarPrecosDeMercado(titulo, autor)
+    const resultado = await buscarPrecosDeMercado(titulo, autor, condicao)
     res.json({ resultado })
   } catch (err) {
     next(err)

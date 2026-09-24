@@ -61,9 +61,10 @@ export async function buscarPorIsbn(isbn) {
  * encontrados (menor, maior, média) pra ajudar a precificar. Retorna null se
  * a busca falhar; `quantidade: 0` se não achar nenhum anúncio parecido.
  */
-export async function buscarPrecos(titulo, autor) {
+export async function buscarPrecos(titulo, autor, condicao) {
   const params = new URLSearchParams({ titulo })
   if (autor) params.set('autor', autor)
+  if (condicao) params.set('condicao', condicao)
 
   const response = await fetch(`${API_URL}/livros/precos?${params}`)
   const data = await response.json()

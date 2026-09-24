@@ -60,6 +60,13 @@ function formatarPreco(valor) {
   return BRL_FORMATTER.format(valor);
 }
 
+const CONDICAO_LABEL = { novo: "novo", usado: "usado" };
+function rotuloCondicao(precos) {
+  if (!precos?.condicaoAplicada) return "";
+  const base = CONDICAO_LABEL[precos.condicaoAplicada];
+  return `${precos.quantidade > 1 ? `${base}s` : base} `;
+}
+
 const isDragging = ref(false);
 
 function addFiles(fileList) {
@@ -436,7 +443,7 @@ function removePhoto(index) {
               d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
             />
           </svg>
-          Nenhum anúncio parecido encontrado na Estante Virtual pra comparar preço.
+          Nenhum anúncio {{ rotuloCondicao(precos) }}parecido encontrado na Estante Virtual pra comparar preço.
         </p>
 
         <div v-else-if="precos">
@@ -445,9 +452,8 @@ function removePhoto(index) {
               <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" d="M4 20V10M10 20V4M16 20v-7M4 20h16" />
               </svg>
-              {{ precos.quantidade }} anúncio{{ precos.quantidade > 1 ? "s" : "" }} parecido{{
-                precos.quantidade > 1 ? "s" : ""
-              }}
+              {{ precos.quantidade }} anúncio{{ precos.quantidade > 1 ? "s" : "" }}
+              {{ rotuloCondicao(precos) }}parecido{{ precos.quantidade > 1 ? "s" : "" }}
               na Estante Virtual
             </div>
             <a

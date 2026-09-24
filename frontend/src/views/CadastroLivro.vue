@@ -109,21 +109,21 @@ async function handleIsbnBlur() {
   }
 }
 
-// Evita rebuscar de novo se título/autor não mudaram desde a última busca
-// (ex: usuário só passou o foco pelo campo sem editar nada).
+// Evita rebuscar de novo se título/autor/condição não mudaram desde a última
+// busca (ex: usuário só passou o foco pelo campo sem editar nada).
 let ultimaBuscaPrecos = ''
 
-async function handleTituloBlur() {
+async function buscarPrecosAtualizados() {
   if (!form.value.titulo) return
 
-  const chave = `${form.value.titulo}|${form.value.autor}`
+  const chave = `${form.value.titulo}|${form.value.autor}|${form.value.condicao}`
   if (chave === ultimaBuscaPrecos) return
   ultimaBuscaPrecos = chave
 
   precosLoading.value = true
   precosError.value = ''
   try {
-    precos.value = await buscarPrecos(form.value.titulo, form.value.autor)
+    precos.value = await buscarPrecos(form.value.titulo, form.value.autor, form.value.condicao)
   } catch (err) {
     precosError.value = err.message
     precos.value = null
@@ -131,6 +131,16 @@ async function handleTituloBlur() {
     precosLoading.value = false
   }
 }
+
+// Se a condição mudar depois de já ter buscado preços uma vez, refaz a busca
+// com o novo filtro (não dispara antes da primeira busca, pra não pedir
+// preço de um livro que ainda nem tem título).
+watch(
+  () => form.value.condicao,
+  () => {
+    if (ultimaBuscaPrecos) buscarPrecosAtualizados()
+  },
+)
 
 function handleSubmit() {
   // TODO: enviar `form` + `photos` para o backend (POST /api/livros).
@@ -152,7 +162,7 @@ function handleSubmit() {
       :precos-error="precosError"
       @photos-added="handlePhotosAdded"
       @isbn-blur="handleIsbnBlur"
-      @titulo-blur="handleTituloBlur"
+      @titulo-blur="buscarPrecosAtualizados"
       @submit="handleSubmit"
     />
   </div>
