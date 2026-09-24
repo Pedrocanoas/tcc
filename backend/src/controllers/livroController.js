@@ -3,6 +3,7 @@ import { unlink } from 'node:fs/promises'
 import { detectarIsbnNasFotos } from '../services/barcodeService.js'
 import { gerarDescricoes } from '../services/descricaoService.js'
 import { buscarMetadadosPorIsbn } from '../services/isbnLookupService.js'
+import { buscarPrecosDeMercado } from '../services/precoService.js'
 
 export async function gerarDescricao(req, res, next) {
   const files = req.files ?? []
@@ -41,6 +42,20 @@ export async function buscarPorIsbn(req, res, next) {
   try {
     const metadados = await buscarMetadadosPorIsbn(req.params.isbn)
     res.json({ metadados })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function buscarPrecos(req, res, next) {
+  const { titulo, autor } = req.query
+  if (!titulo) {
+    return res.status(400).json({ error: 'Informe o título pra buscar preços.' })
+  }
+
+  try {
+    const resultado = await buscarPrecosDeMercado(titulo, autor)
+    res.json({ resultado })
   } catch (err) {
     next(err)
   }

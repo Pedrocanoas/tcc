@@ -5,7 +5,7 @@ import path from 'node:path'
 import { Router } from 'express'
 import multer from 'multer'
 
-import { buscarPorIsbn, detectarIsbn, gerarDescricao } from '../controllers/livroController.js'
+import { buscarPorIsbn, buscarPrecos, detectarIsbn, gerarDescricao } from '../controllers/livroController.js'
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
@@ -25,5 +25,6 @@ const router = Router()
 router.post('/gerar-descricao', upload.array('fotos', 5), gerarDescricao)
 router.post('/detectar-isbn', upload.array('fotos', 5), detectarIsbn)
 router.get('/isbn/:isbn', buscarPorIsbn)
+router.get('/precos', buscarPrecos)
 
 export default router

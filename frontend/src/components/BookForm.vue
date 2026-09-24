@@ -48,9 +48,17 @@ defineProps({
   generationError: { type: String, default: "" },
   metadataLoading: { type: Boolean, default: false },
   metadataError: { type: String, default: "" },
+  precos: { type: Object, default: null },
+  precosLoading: { type: Boolean, default: false },
+  precosError: { type: String, default: "" },
 });
 
-const emit = defineEmits(["submit", "photos-added", "isbn-blur"]);
+const emit = defineEmits(["submit", "photos-added", "isbn-blur", "titulo-blur"]);
+
+const BRL_FORMATTER = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+function formatarPreco(valor) {
+  return BRL_FORMATTER.format(valor);
+}
 
 const isDragging = ref(false);
 
@@ -228,6 +236,7 @@ function removePhoto(index) {
               required
               placeholder="Ex: English Grammar in Use"
               class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              @blur="$emit('titulo-blur')"
             />
           </label>
 
@@ -390,6 +399,44 @@ function removePhoto(index) {
             class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </label>
+      </div>
+
+      <div v-if="precosLoading || precosError || precos" class="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+        <p v-if="precosLoading" class="text-amber-600">Buscando preços de anúncios parecidos…</p>
+        <p v-else-if="precosError" class="text-red-600">{{ precosError }}</p>
+        <p v-else-if="precos && precos.quantidade === 0" class="text-slate-500">
+          Nenhum anúncio parecido encontrado na Estante Virtual pra comparar preço.
+        </p>
+        <div v-else-if="precos" class="flex flex-wrap items-center gap-x-6 gap-y-1">
+          <span class="font-medium text-slate-700">
+            {{ precos.quantidade }} anúncio{{ precos.quantidade > 1 ? "s" : "" }} parecido{{
+              precos.quantidade > 1 ? "s" : ""
+            }}:
+          </span>
+          <span>
+            menor <strong class="text-emerald-700">{{ formatarPreco(precos.menor.preco) }}</strong>
+            <a
+              :href="precos.menor.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ml-1 text-blue-700 underline hover:text-blue-900"
+              >ver anúncio</a
+            >
+          </span>
+          <span>
+            média <strong>{{ formatarPreco(precos.media) }}</strong>
+          </span>
+          <span>
+            maior <strong class="text-amber-700">{{ formatarPreco(precos.maior.preco) }}</strong>
+            <a
+              :href="precos.maior.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ml-1 text-blue-700 underline hover:text-blue-900"
+              >ver anúncio</a
+            >
+          </span>
+        </div>
       </div>
 
       <label class="flex flex-col gap-1 sm:col-span-2">

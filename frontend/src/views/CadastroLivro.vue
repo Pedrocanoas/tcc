@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import BookForm from '@/components/BookForm.vue'
-import { buscarPorIsbn, detectarIsbn, gerarDescricao } from '@/lib/api.js'
+import { buscarPorIsbn, buscarPrecos, detectarIsbn, gerarDescricao } from '@/lib/api.js'
 
 const photos = ref([])
 const form = ref({
@@ -30,6 +30,9 @@ const generating = ref(false)
 const generationError = ref('')
 const metadataLoading = ref(false)
 const metadataError = ref('')
+const precos = ref(null)
+const precosLoading = ref(false)
+const precosError = ref('')
 
 /** Preenche só os campos que ainda estão vazios — não sobrescreve o que o usuário já digitou. */
 function aplicarMetadados(metadados) {
@@ -106,6 +109,29 @@ async function handleIsbnBlur() {
   }
 }
 
+// Evita rebuscar de novo se título/autor não mudaram desde a última busca
+// (ex: usuário só passou o foco pelo campo sem editar nada).
+let ultimaBuscaPrecos = ''
+
+async function handleTituloBlur() {
+  if (!form.value.titulo) return
+
+  const chave = `${form.value.titulo}|${form.value.autor}`
+  if (chave === ultimaBuscaPrecos) return
+  ultimaBuscaPrecos = chave
+
+  precosLoading.value = true
+  precosError.value = ''
+  try {
+    precos.value = await buscarPrecos(form.value.titulo, form.value.autor)
+  } catch (err) {
+    precosError.value = err.message
+    precos.value = null
+  } finally {
+    precosLoading.value = false
+  }
+}
+
 function handleSubmit() {
   // TODO: enviar `form` + `photos` para o backend (POST /api/livros).
   console.log('Cadastrar livro', form.value, photos.value)
@@ -121,8 +147,12 @@ function handleSubmit() {
       :generation-error="generationError"
       :metadata-loading="metadataLoading"
       :metadata-error="metadataError"
+      :precos="precos"
+      :precos-loading="precosLoading"
+      :precos-error="precosError"
       @photos-added="handlePhotosAdded"
       @isbn-blur="handleIsbnBlur"
+      @titulo-blur="handleTituloBlur"
       @submit="handleSubmit"
     />
   </div>
