@@ -61,15 +61,18 @@ export function warmUpModel() {
 }
 
 /** Envia as fotos pro processo persistente de inferência e retorna a
- * descrição de condição gerada por foto. As chamadas são atendidas em fila
- * (uma por vez), já que só existe um processo/modelo carregado na GPU/CPU. */
-export function gerarDescricoes(imagePaths) {
+ * descrição de condição gerada por foto. `capa`/`condicao`, quando
+ * informados, condicionam a legenda gerada ao que o formulário já sabe (em
+ * vez do modelo ter que adivinhar isso pela foto — ver model/src/prompt.py).
+ * As chamadas são atendidas em fila (uma por vez), já que só existe um
+ * processo/modelo carregado na GPU/CPU. */
+export function gerarDescricoes(imagePaths, capa, condicao) {
   const child = ensureWorker()
   return new Promise((resolve, reject) => {
     queue.push({
       resolve: (results) => resolve(results.map(({ image, caption }) => ({ arquivo: image, descricao: caption }))),
       reject,
     })
-    child.stdin.write(JSON.stringify(imagePaths) + '\n')
+    child.stdin.write(JSON.stringify({ fotos: imagePaths, capa, condicao }) + '\n')
   })
 }

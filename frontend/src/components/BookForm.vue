@@ -274,6 +274,7 @@ function removePhoto(index) {
               <option value="novo">Novo</option>
               <option value="seminovo">Seminovo</option>
               <option value="usado">Usado</option>
+              <option value="antigo">Antigo</option>
             </select>
           </label>
         </div>

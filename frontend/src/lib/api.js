@@ -3,12 +3,16 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
 /**
  * Envia as fotos do livro pro backend e retorna a descrição de condição gerada
  * (usa a primeira, já que todas as fotos de um mesmo livro devem descrever o mesmo estado).
+ * `capa`/`condicao`, quando informados, condicionam a legenda gerada ao que
+ * o formulário já sabe, em vez do modelo ter que adivinhar isso pela foto.
  */
-export async function gerarDescricao(photos) {
+export async function gerarDescricao(photos, capa, condicao) {
   const body = new FormData()
   for (const { file } of photos) {
     body.append('fotos', file)
   }
+  if (capa) body.append('capa', capa)
+  if (condicao) body.append('condicao', condicao)
 
   const response = await fetch(`${API_URL}/livros/gerar-descricao`, { method: 'POST', body })
   const data = await response.json()

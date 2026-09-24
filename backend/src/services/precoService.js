@@ -77,7 +77,7 @@ function filtrarRelevantes(listings, titulo) {
 
 // A Estante Virtual só distingue novo/usado no filtro (não tem "seminovo"),
 // então agrupamos seminovo com usado — mais perto do preço de referência real.
-const TIPO_DE_LIVRO = { novo: 'novo', seminovo: 'usado', usado: 'usado' }
+const TIPO_DE_LIVRO = { novo: 'novo', seminovo: 'usado', usado: 'usado', antigo: 'usado' }
 
 function buildSearchUrl(query, condicao) {
   const params = new URLSearchParams({ nsCat: 'Natural', q: query, searchField: 'titulo-autor' })

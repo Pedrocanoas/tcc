@@ -12,7 +12,8 @@ export async function gerarDescricao(req, res, next) {
   }
 
   try {
-    const descricoes = await gerarDescricoes(files.map((file) => file.path))
+    const { capa, condicao } = req.body
+    const descricoes = await gerarDescricoes(files.map((file) => file.path), capa, condicao)
     res.json({ descricoes })
   } catch (err) {
     next(err)

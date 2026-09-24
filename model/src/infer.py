@@ -15,6 +15,7 @@ from PIL import Image
 from transformers import BlipForConditionalGeneration, BlipProcessor
 
 from src.config import BASE_MODEL, CHECKPOINTS_DIR
+from src.prompt import build_prefix
 
 
 def load_model(checkpoint: str | Path, device: torch.device):
@@ -24,9 +25,19 @@ def load_model(checkpoint: str | Path, device: torch.device):
     return processor, model
 
 
-def generate_caption(processor, model, image_path: Path, device: torch.device, max_new_tokens: int = 128) -> str:
+def generate_caption(
+    processor,
+    model,
+    image_path: Path,
+    device: torch.device,
+    max_new_tokens: int = 128,
+    prefix: str | None = None,
+) -> str:
     image = Image.open(image_path).convert("RGB")
-    inputs = processor(images=image, return_tensors="pt").to(device)
+    if prefix:
+        inputs = processor(images=image, text=prefix, return_tensors="pt").to(device)
+    else:
+        inputs = processor(images=image, return_tensors="pt").to(device)
     with torch.no_grad():
         output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
     return processor.decode(output_ids[0], skip_special_tokens=True)
@@ -38,6 +49,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINTS_DIR / "best")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--max-new-tokens", type=int, default=128)
+    parser.add_argument("--capa", choices=["mole", "dura"], help="condiciona a legenda ao tipo de capa já conhecido")
+    parser.add_argument(
+        "--condicao",
+        choices=["novo", "seminovo", "usado", "antigo"],
+        help="condiciona a legenda à condição já conhecida",
+    )
     parser.add_argument(
         "--json",
         action="store_true",
@@ -57,10 +74,13 @@ def main() -> None:
 
     device = torch.device(args.device)
     processor, model = load_model(checkpoint, device)
+    prefix = build_prefix(args.capa, args.condicao)
 
     results = []
     for image_path in args.images:
-        caption = generate_caption(processor, model, image_path, device, max_new_tokens=args.max_new_tokens)
+        caption = generate_caption(
+            processor, model, image_path, device, max_new_tokens=args.max_new_tokens, prefix=prefix
+        )
         results.append({"image": str(image_path), "caption": caption})
         if not args.json:
             print(f"{image_path}: {caption}")

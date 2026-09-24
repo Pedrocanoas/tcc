@@ -3,7 +3,8 @@ pedidos via stdin/stdout, um por linha — evita recarregar ~1 GB de pesos a
 cada chamada (é o que `infer.py` faz quando rodado como processo avulso).
 
 Protocolo (uma linha JSON por pedido/resposta, sempre com \n no final):
-    entrada: ["caminho/foto1.jpg", "caminho/foto2.jpg"]
+    entrada: {"fotos": ["foto1.jpg", "foto2.jpg"], "capa": "dura", "condicao": "seminovo"}
+             (também aceita uma lista pura de caminhos, sem capa/condicao)
     saída:   {"ok": [{"image": "...", "caption": "..."}, ...]}
     erro:    {"error": "mensagem"}
 
@@ -19,6 +20,7 @@ import torch
 
 from src.config import BASE_MODEL, CHECKPOINTS_DIR
 from src.infer import generate_caption, load_model
+from src.prompt import build_prefix
 
 
 def main() -> None:
@@ -40,11 +42,19 @@ def main() -> None:
         if not line:
             continue
         try:
-            image_paths = json.loads(line)
+            pedido = json.loads(line)
+            if isinstance(pedido, list):
+                image_paths, capa, condicao = pedido, None, None
+            else:
+                image_paths, capa, condicao = pedido["fotos"], pedido.get("capa"), pedido.get("condicao")
+
+            prefix = build_prefix(capa, condicao)
             results = [
                 {
                     "image": path,
-                    "caption": generate_caption(processor, model, Path(path), device, max_new_tokens=128),
+                    "caption": generate_caption(
+                        processor, model, Path(path), device, max_new_tokens=128, prefix=prefix
+                    ),
                 }
                 for path in image_paths
             ]

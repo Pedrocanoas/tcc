@@ -62,20 +62,32 @@ function sincronizarLocalizacaoNaDescricao() {
 
 watch(() => [form.value.embutirLocalizacao, form.value.localizacao], sincronizarLocalizacaoNaDescricao)
 
-async function handlePhotosAdded() {
+/** Gera (ou regenera) a descrição a partir das fotos já enviadas,
+ * condicionada à capa/condição atuais do formulário — ver
+ * model/src/prompt.py. Não adianta chamar sem foto nenhuma ainda. */
+async function gerarDescricaoAtualizada() {
+  if (!photos.value.length) return
+
   generating.value = true
   generationError.value = ''
-  const descricaoPromise = gerarDescricao(photos.value)
-    .then((descricao) => {
-      form.value.descricao = descricao
-      sincronizarLocalizacaoNaDescricao()
-    })
-    .catch((err) => {
-      generationError.value = err.message
-    })
-    .finally(() => {
-      generating.value = false
-    })
+  try {
+    form.value.descricao = await gerarDescricao(photos.value, form.value.capa, form.value.condicao)
+    sincronizarLocalizacaoNaDescricao()
+  } catch (err) {
+    generationError.value = err.message
+  } finally {
+    generating.value = false
+  }
+}
+
+// Se capa/condição mudarem depois que a descrição já foi gerada uma vez,
+// regenera com o novo condicionamento (não dispara antes da primeira vez).
+watch([() => form.value.capa, () => form.value.condicao], () => {
+  if (photos.value.length) gerarDescricaoAtualizada()
+})
+
+async function handlePhotosAdded() {
+  const descricaoPromise = gerarDescricaoAtualizada()
 
   // Tenta ler o ISBN do código de barras nas fotos, em paralelo com a descrição.
   // Se não achar (a maioria das fotos não mostra a contracapa), o campo ISBN

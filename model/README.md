@@ -67,6 +67,10 @@ py -m venv .venv
 # 3. inferência (usa checkpoints/best se existir, senão cai no modelo base)
 .venv/Scripts/python.exe -m src.infer caminho/para/foto1.jpg caminho/para/foto2.jpg
 
+# 3b. inferência condicionada à capa/condição já preenchidas no formulário
+#     (evita o modelo ter que adivinhar esses dois atributos pela foto)
+.venv/Scripts/python.exe -m src.infer --capa dura --condicao seminovo foto1.jpg
+
 # 4. avaliação: compara gerado vs. legenda original do vendedor
 #    (--split val usa livros que o modelo nunca viu no treino)
 .venv/Scripts/python.exe -m src.evaluate --split val --limit 10
@@ -75,6 +79,23 @@ py -m venv .venv
 `train.py --limit-train N --epochs 1` é útil para testar rapidamente se o
 pipeline roda antes de disparar um treino completo (que em CPU deve demorar
 — vale rodar em background).
+
+### Condicionar a legenda à capa/condição já conhecidas
+
+O formulário de cadastro já coleta **Capa** (mole/dura) e **Condição**
+(novo/seminovo/usado/antigo) diretamente do usuário — não faz sentido o
+modelo ter que adivinhar esses dois atributos pela foto (e às vezes errar,
+ex.: dizer "brochura" num livro de capa dura, porque a maioria do dataset é
+brochura). `src/prompt.py` monta um prefixo (ex.: `"Capa dura, muito bem
+conservado,"`) a partir desses dois campos; passado como `text=` pro BLIP
+(`conditional captioning`, suportado nativamente pelo modelo), o decoder
+continua a legenda a partir dali em vez de gerar do zero — só precisa
+preencher o resto (arranhões, anotações, páginas etc.).
+
+`infer.py --capa/--condicao`, `serve.py` (aceita `capa`/`condicao` no JSON
+de entrada) e o formulário (`backend/`/`frontend/`) já usam isso — a
+descrição é regenerada automaticamente se você trocar Capa ou Condição
+depois de já ter enviado as fotos.
 
 ### Outros scripts em `src/`
 
