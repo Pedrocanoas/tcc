@@ -86,7 +86,19 @@ pipeline roda antes de disparar um treino completo (que em CPU deve demorar
 - **`detect_barcode.py`** — lê um código de barras EAN-13/ISBN numa foto
   (`pyzbar`), sem depender de nenhum checkpoint treinado. Usado pelo
   autofill de título/autor/editora do formulário (`backend/`).
-  `.venv/Scripts/python.exe -m src.detect_barcode foto.jpg`.
+  `.venv/Scripts/python.exe -m src.detect_barcode foto.jpg`. Tenta a foto
+  original, depois com realce de contraste, rotações (90/180/270 +
+  inclinação leve) e upscale se a imagem for pequena.
+
+  > **Taxa de acerto baixa por natureza:** medido contra `dataset/raw/`
+  > (fotos do sebo usadas no treino), a detecção acha 0% dos códigos — não
+  > é bug: a maioria dos livros tem só 1 foto (65%, sem contracapa
+  > nenhuma), e mesmo os que têm 3 fotos raramente mostram a contracapa de
+  > frente (costuma ser lombada, página interna, ou contracapa em ângulo
+  > forte, ilegível pro zbar mesmo com as melhorias acima). Pra funcionar
+  > na prática, precisa de uma foto relativamente reta e bem iluminada
+  > mirando o código de barras — vale considerar um texto de dica perto do
+  > upload de fotos no formulário.
 
 ## Treinando no Kaggle
 
