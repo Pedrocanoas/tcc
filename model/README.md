@@ -25,6 +25,20 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > retreino com o dataset maior, o próximo passo é tentar
 > `--no-freeze-vision` (mais lento, mais parâmetros, mas usa a imagem de
 > verdade em vez de aprender só o "estilo" médio do texto).
+>
+> **Vazamento de código do vendedor (corrigido em 2026-09-24):** ~24% dos
+> livros tinham o código interno do vendedor (ex.: `"Local: Direito
+> DR460/01/2005/235AP - Brochura, ..."`) sobrando no início da legenda de
+> treino — `strip_leading_seller_code` só cobria o formato mais simples
+> (`"<código> - texto"`, prefixo ≤25 caracteres) e não os formatos com
+> `"Local: <categoria>"` ou `"SKU: <número>."`. O modelo aprendeu a
+> reproduzir esse padrão, gerando prefixos de código inventados mesmo em
+> fotos sem relação nenhuma com o código real. `strip_leading_seller_code`
+> foi reescrita pra cobrir os três formatos (heurística: só corta um
+> prefixo se ele tiver dígito e nenhuma palavra comum do português —
+> sinal de que ainda é código, não a descrição de verdade); vazamento caiu
+> pra ~0,3% dos livros. **Isso exige retreinar o checkpoint** — o
+> `model/checkpoints/best/` atual ainda foi treinado com o dataset antigo.
 
 ## Setup
 
@@ -209,8 +223,10 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- Avaliar o checkpoint treinado com o dataset expandido (~1.918 livros) e
-  ver se o `--max-length 128` resolveu o corte de legenda e se o volume
-  maior de dados reduziu a repetição de legendas genéricas entre livros
-  diferentes (`src/evaluate.py`).
+- Retreinar com os manifestos regenerados após o fix do vazamento de
+  código do vendedor (ver nota acima) — o checkpoint atual em
+  `model/checkpoints/best/` ainda não viu essa correção.
+- Avaliar o checkpoint retreinado (`src/evaluate.py`) e ver se o
+  `--max-length 128` resolveu o corte de legenda e se o volume maior de
+  dados reduziu a repetição de legendas genéricas entre livros diferentes.
 - Se a repetição persistir, tentar `--no-freeze-vision` (ver nota acima).

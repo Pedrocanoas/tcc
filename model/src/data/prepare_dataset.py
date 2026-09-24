@@ -26,6 +26,24 @@ TRAILING_TAG_RE = re.compile(r"_[A-Za-z0-9]+_\.?\s*$")
 FOTO_ORIGINAL_RE = re.compile(r"foto original\.?", re.IGNORECASE)
 WHITESPACE_RE = re.compile(r"\s+")
 
+# Palavras comuns do português — um prefixo que contenha alguma delas já é
+# texto de verdade (não um código), então a remoção para por ali. Achado ao
+# medir vazamento de código nos dados de treino (ver model/README.md).
+STOPWORDS = {
+    "em", "de", "da", "do", "das", "dos", "com", "sem", "muito", "bem",
+    "para", "as", "os", "um", "uma", "e", "mas", "que", "a", "o", "na",
+    "no", "nas", "nos", "ao", "aos", "se", "ou", "tem", "está", "esta",
+    "são", "pela", "pelo", "bom", "boa", "ótimo", "otimo",
+}
+
+# Formatos observados no scraping: "EI805/350AP - <texto>",
+# "Local: <categoria> <código> - <texto>", "SKU: <número>. <código>; <texto>",
+# além de variações com "<código>. <texto>" no lugar do " - ".
+SKU_PREFIX_RE = re.compile(r"^sku:\s*\d+\.\s*", re.IGNORECASE)
+LOCAL_CATEGORY_RE = re.compile(r"^local:\s*(?:(?!\S*\d)\S+\s+){0,4}", re.IGNORECASE)
+SHORT_CODE_DOT_RE = re.compile(r"^[a-z]{1,6}\d\w*\.\s*", re.IGNORECASE)
+CODE_SEPARATOR_RE = re.compile(r"\s*[-;]\s*")
+
 
 def extract_seller_description(raw_text: str) -> str | None:
     if SELLER_DESC_HEADER not in raw_text:
@@ -33,12 +51,30 @@ def extract_seller_description(raw_text: str) -> str | None:
     return raw_text.split(SELLER_DESC_HEADER, 1)[1].strip()
 
 
-def strip_leading_seller_code(text: str, max_code_len: int = 25) -> str:
-    if " - " in text:
-        prefix, rest = text.split(" - ", 1)
-        if len(prefix) <= max_code_len:
-            return rest.strip()
-    return text
+def strip_leading_seller_code(text: str, max_iterations: int = 8) -> str:
+    """Remove o código interno do vendedor (categoria/prateleira + SKU) do
+    início da legenda. Um prefixo só é cortado se, até o próximo separador
+    (" - ", ";" ou "<código>."), tiver algum dígito (todo código observado
+    tem número; "brochura", "novo", "lacrado" etc. não têm) e nenhuma
+    STOPWORDS — os dois sinais juntos distinguem código de início de frase."""
+    text = LOCAL_CATEGORY_RE.sub("", text)
+    text = SKU_PREFIX_RE.sub("", text)
+    for _ in range(max_iterations):
+        dot_match = SHORT_CODE_DOT_RE.match(text)
+        if dot_match:
+            text = text[dot_match.end() :]
+            continue
+        sep_match = CODE_SEPARATOR_RE.search(text)
+        if not sep_match:
+            break
+        prefix = text[: sep_match.start()]
+        if not any(char.isdigit() for char in prefix):
+            break
+        words = re.findall(r"[^\s:]+", prefix.lower())
+        if any(word in STOPWORDS for word in words):
+            break
+        text = text[sep_match.end() :]
+    return text.strip()
 
 
 def clean_caption(raw_text: str) -> str | None:
