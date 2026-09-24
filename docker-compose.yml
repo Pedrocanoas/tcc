@@ -17,12 +17,12 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_API_URL: https://${DOMAIN:-localhost}/api
+        VITE_API_URL: /api
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      DOMAIN: ${DOMAIN:-localhost}
+      CADDY_ADDRESS: ${CADDY_ADDRESS:-https://${DOMAIN:-localhost}}
     ports:
       - "80:80"
       - "443:443"

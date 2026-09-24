@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import BookForm from '@/components/BookForm.vue'
 import { buscarPorIsbn, detectarIsbn, gerarDescricao } from '@/lib/api.js'
 
@@ -14,6 +14,17 @@ const form = ref({
   condicao: 'usado',
   sku: '',
   descricao: '',
+  localizacao: '',
+  embutirLocalizacao: false,
+  estante: '',
+  largura: '',
+  altura: '',
+  grossura: '',
+  peso: '',
+  quantidade: 1,
+  capa: 'mole',
+  paginas: '',
+  preco: '',
 })
 const generating = ref(false)
 const generationError = ref('')
@@ -30,12 +41,31 @@ function aplicarMetadados(metadados) {
   if (!form.value.isbn && metadados.isbn) form.value.isbn = metadados.isbn
 }
 
+// Mantém o texto da localização (quando "Embutir localização na descrição"
+// está marcado) sincronizado no final de `form.descricao` — guarda o que foi
+// adicionado da última vez pra poder tirar antes de recolocar, sem duplicar.
+let sufixoLocalizacaoAplicado = ''
+
+function sincronizarLocalizacaoNaDescricao() {
+  if (sufixoLocalizacaoAplicado && form.value.descricao.endsWith(sufixoLocalizacaoAplicado)) {
+    form.value.descricao = form.value.descricao.slice(0, -sufixoLocalizacaoAplicado.length)
+  }
+  sufixoLocalizacaoAplicado =
+    form.value.embutirLocalizacao && form.value.localizacao
+      ? `\n\nLocalização: ${form.value.localizacao}`
+      : ''
+  if (sufixoLocalizacaoAplicado) form.value.descricao += sufixoLocalizacaoAplicado
+}
+
+watch(() => [form.value.embutirLocalizacao, form.value.localizacao], sincronizarLocalizacaoNaDescricao)
+
 async function handlePhotosAdded() {
   generating.value = true
   generationError.value = ''
   const descricaoPromise = gerarDescricao(photos.value)
     .then((descricao) => {
       form.value.descricao = descricao
+      sincronizarLocalizacaoNaDescricao()
     })
     .catch((err) => {
       generationError.value = err.message

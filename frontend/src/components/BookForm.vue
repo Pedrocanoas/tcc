@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from "vue";
 
+import YearPicker from "./YearPicker.vue";
+
 const form = defineModel("form", {
   default: () => ({
     titulo: "",
@@ -12,8 +14,32 @@ const form = defineModel("form", {
     condicao: "usado",
     sku: "",
     descricao: "",
+    localizacao: "",
+    embutirLocalizacao: false,
+    estante: "",
+    largura: "",
+    altura: "",
+    grossura: "",
+    peso: "",
+    quantidade: 1,
+    capa: "mole",
+    paginas: "",
+    preco: "",
   }),
 });
+
+const ESTANTES = [
+  "Literatura Brasileira",
+  "Literatura Estrangeira",
+  "Romance",
+  "Infantil e Juvenil",
+  "Didático e Acadêmico",
+  "Direito",
+  "Autoajuda",
+  "Religião e Espiritualidade",
+  "História",
+  "Outros Assuntos",
+];
 
 const photos = defineModel("photos", { default: () => [] });
 
@@ -165,18 +191,18 @@ function removePhoto(index) {
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-slate-700">Editora</span>
+            <span class="text-sm font-medium text-slate-700">Autor</span>
             <input
-              v-model="form.editora"
+              v-model="form.autor"
               type="text"
               class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-slate-700">Autor</span>
+            <span class="text-sm font-medium text-slate-700">Editora</span>
             <input
-              v-model="form.autor"
+              v-model="form.editora"
               type="text"
               class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
@@ -207,13 +233,7 @@ function removePhoto(index) {
 
           <label class="flex flex-col gap-1">
             <span class="text-sm font-medium text-slate-700">Ano</span>
-            <input
-              v-model="form.ano"
-              type="number"
-              min="1000"
-              max="2100"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
+            <YearPicker v-model="form.ano" :min="1000" :max="2100" />
           </label>
 
           <label class="flex flex-col gap-1">
@@ -241,6 +261,135 @@ function removePhoto(index) {
             </select>
           </label>
         </div>
+      </div>
+
+      <div class="flex flex-col gap-1 sm:col-span-2">
+        <span class="text-sm font-medium text-slate-700">Localização do Produto</span>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            v-model="form.localizacao"
+            type="text"
+            placeholder="(Na sua loja) [Opcional]"
+            class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+          <label class="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              v-model="form.embutirLocalizacao"
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300 text-blue-800 focus:ring-2 focus:ring-blue-200"
+            />
+            Embutir localização na descrição
+          </label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Estante</span>
+          <select
+            v-model="form.estante"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="">Selecione...</option>
+            <option v-for="opcao in ESTANTES" :key="opcao" :value="opcao">
+              {{ opcao }}
+            </option>
+          </select>
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Capa</span>
+          <select
+            v-model="form.capa"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="mole">Mole</option>
+            <option value="dura">Dura</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Largura (cm)</span>
+          <input
+            v-model="form.largura"
+            type="number"
+            min="0"
+            step="1"
+            required
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Altura (cm)</span>
+          <input
+            v-model="form.altura"
+            type="number"
+            min="0"
+            step="1"
+            required
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Grossura (cm)</span>
+          <input
+            v-model="form.grossura"
+            type="number"
+            min="0"
+            step="1"
+            required
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 sm:col-span-2 sm:grid-cols-4">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Peso (g)</span>
+          <input
+            v-model="form.peso"
+            type="number"
+            min="0"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Nº de Páginas</span>
+          <input
+            v-model="form.paginas"
+            type="number"
+            min="0"
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Quantidade</span>
+          <input
+            v-model="form.quantidade"
+            type="number"
+            min="1"
+            required
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-slate-700">Preço (R$)</span>
+          <input
+            v-model="form.preco"
+            type="number"
+            min="0"
+            step="0.01"
+            required
+            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
       </div>
 
       <label class="flex flex-col gap-1 sm:col-span-2">
