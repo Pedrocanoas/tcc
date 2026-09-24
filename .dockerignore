@@ -1,0 +1,14 @@
+**/node_modules
+**/__pycache__
+**/*.pyc
+.git
+.github
+.vscode
+
+model/.venv
+model/checkpoints
+dataset/raw
+dataset/processed
+frontend/dist
+*.zip
+*.log
