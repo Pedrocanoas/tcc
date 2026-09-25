@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--max-length", type=int, default=128)
+    parser.add_argument("--freeze-vision", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
@@ -47,6 +48,7 @@ def main() -> None:
             str(args.lr),
             "--max-length",
             str(args.max_length),
+            "--freeze-vision" if args.freeze_vision else "--no-freeze-vision",
         ]
         train()
     finally:
