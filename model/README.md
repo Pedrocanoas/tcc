@@ -26,30 +26,33 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > **`--no-freeze-vision` tentado e descartado (2026-09-26):** destravar o
 > encoder com os hiperparâmetros atuais (lr=5e-5 uniforme, 20 epochs,
 > ~2.653 exemplos) piora a situação em vez de ajudar — colapso de modo
-> ("mode collapse"): no mesmo split de validação, a similaridade média caiu
-> de 0.44 (encoder congelado) pra 0.22, com 6 de 8 livros testados gerando
-> a **legenda idêntica, palavra por palavra**, ignorando a foto por
-> completo. Dataset pequeno demais pra destravar o encoder inteiro com essa
-> configuração — o modelo encontra um mínimo mais "barato" (repetir a
-> legenda mais comum do treino) do que aprender a diferenciar as imagens.
-> Checkpoint desse experimento não foi promovido a produção. Se for tentar
-> de novo: learning rate bem menor especificamente pro encoder (LR
-> diferencial, não a mesma taxa do decoder), menos epochs, e/ou destravar
-> só as últimas 1-2 camadas do encoder em vez dele inteiro.
+> ("mode collapse"): numa amostra de 8 livros do split de validação, a
+> similaridade média caiu de 0.44 (encoder congelado) pra 0.22, com 6 de 8
+> livros gerando a **legenda idêntica, palavra por palavra**, ignorando a
+> foto por completo. Dataset pequeno demais pra destravar o encoder inteiro
+> com essa configuração — o modelo encontra um mínimo mais "barato"
+> (repetir a legenda mais comum do treino) do que aprender a diferenciar as
+> imagens. Checkpoint desse experimento não foi promovido a produção. Se
+> for tentar de novo: learning rate bem menor especificamente pro encoder
+> (LR diferencial, não a mesma taxa do decoder), menos epochs, e/ou
+> destravar só as últimas 1-2 camadas do encoder em vez dele inteiro.
 >
-> **Vazamento de código do vendedor (corrigido em 2026-09-24):** ~24% dos
-> livros tinham o código interno do vendedor (ex.: `"Local: Direito
-> DR460/01/2005/235AP - Brochura, ..."`) sobrando no início da legenda de
-> treino — `strip_leading_seller_code` só cobria o formato mais simples
-> (`"<código> - texto"`, prefixo ≤25 caracteres) e não os formatos com
-> `"Local: <categoria>"` ou `"SKU: <número>."`. O modelo aprendeu a
-> reproduzir esse padrão, gerando prefixos de código inventados mesmo em
-> fotos sem relação nenhuma com o código real. `strip_leading_seller_code`
-> foi reescrita pra cobrir os três formatos (heurística: só corta um
-> prefixo se ele tiver dígito e nenhuma palavra comum do português —
-> sinal de que ainda é código, não a descrição de verdade); vazamento caiu
-> pra ~0,3% dos livros. **Isso exige retreinar o checkpoint** — o
-> `model/checkpoints/best/` atual ainda foi treinado com o dataset antigo.
+> **Vazamento de código do vendedor (corrigido em 2026-09-24, retreinado e
+> promovido em 2026-09-26):** ~24% dos livros tinham o código interno do
+> vendedor (ex.: `"Local: Direito DR460/01/2005/235AP - Brochura, ..."`)
+> sobrando no início da legenda de treino — `strip_leading_seller_code` só
+> cobria o formato mais simples (`"<código> - texto"`, prefixo ≤25
+> caracteres) e não os formatos com `"Local: <categoria>"` ou `"SKU:
+> <número>."`. O modelo aprendeu a reproduzir esse padrão, gerando
+> prefixos de código inventados mesmo em fotos sem relação nenhuma com o
+> código real. `strip_leading_seller_code` foi reescrita pra cobrir os três
+> formatos (heurística: só corta um prefixo se ele tiver dígito e nenhuma
+> palavra comum do português); vazamento caiu pra ~0,3% dos livros.
+> Retreinado com encoder congelado (isolando essa variável do experimento
+> `--no-freeze-vision` acima) e comparado com `src/evaluate.py` no split de
+> validação **completo** (192 livros): similaridade média subiu de 0.29
+> (checkpoint anterior, dados com vazamento) pra **0.32** (checkpoint
+> novo). Melhora modesta mas real — promovido a `model/checkpoints/best/`.
 
 ## Setup
 
@@ -267,15 +270,12 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- Retreinar **com o encoder congelado** (padrão) usando os manifestos já
-  regenerados após o fix do vazamento de código do vendedor (ver nota
-  acima) — o último treino no Kaggle combinou o fix do vazamento com
-  `--no-freeze-vision` de uma vez, e o resultado ruim (mode collapse, ver
-  nota acima) veio do encoder destravado. Ainda não sabemos se o fix do
-  vazamento sozinho, com o encoder congelado como sempre, já melhora
-  alguma coisa — vale isolar essa variável rodando só ele.
-- Avaliar esse checkpoint (`src/evaluate.py`) e comparar com o atual
-  (treinado antes do fix do vazamento).
 - Se quiser tentar `--no-freeze-vision` de novo no futuro, meça com
   hiperparâmetros diferentes (ver nota acima) — não repita a configuração
-  que já colapsou.
+  que já colapsou (lr uniforme 5e-5, 20 epochs, encoder inteiro
+  destravado).
+- A melhora do fix de vazamento foi modesta (0.29 → 0.32) — o problema de
+  legendas genéricas/pouco diferenciadas por foto (ver "Limitação
+  conhecida" acima) continua em aberto; a causa raiz mais provável ainda é
+  o encoder congelado, mas destravá-lo precisa de uma configuração mais
+  cuidadosa do que a tentada até agora.
