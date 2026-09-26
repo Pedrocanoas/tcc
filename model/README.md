@@ -21,10 +21,21 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > **Limitação conhecida:** mesmo com ~1.918 livros, a avaliação
 > (`src/evaluate.py`) mostra o modelo gerando legendas bem parecidas entre
 > livros com condições bem diferentes — indício de que o encoder congelado
-> não está diferenciando as fotos o suficiente. Se persistir depois do
-> retreino com o dataset maior, o próximo passo é tentar
-> `--no-freeze-vision` (mais lento, mais parâmetros, mas usa a imagem de
-> verdade em vez de aprender só o "estilo" médio do texto).
+> não está diferenciando as fotos o suficiente.
+>
+> **`--no-freeze-vision` tentado e descartado (2026-09-26):** destravar o
+> encoder com os hiperparâmetros atuais (lr=5e-5 uniforme, 20 epochs,
+> ~2.653 exemplos) piora a situação em vez de ajudar — colapso de modo
+> ("mode collapse"): no mesmo split de validação, a similaridade média caiu
+> de 0.44 (encoder congelado) pra 0.22, com 6 de 8 livros testados gerando
+> a **legenda idêntica, palavra por palavra**, ignorando a foto por
+> completo. Dataset pequeno demais pra destravar o encoder inteiro com essa
+> configuração — o modelo encontra um mínimo mais "barato" (repetir a
+> legenda mais comum do treino) do que aprender a diferenciar as imagens.
+> Checkpoint desse experimento não foi promovido a produção. Se for tentar
+> de novo: learning rate bem menor especificamente pro encoder (LR
+> diferencial, não a mesma taxa do decoder), menos epochs, e/ou destravar
+> só as últimas 1-2 camadas do encoder em vez dele inteiro.
 >
 > **Vazamento de código do vendedor (corrigido em 2026-09-24):** ~24% dos
 > livros tinham o código interno do vendedor (ex.: `"Local: Direito
@@ -256,10 +267,15 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- Retreinar com os manifestos regenerados após o fix do vazamento de
-  código do vendedor (ver nota acima) — o checkpoint atual em
-  `model/checkpoints/best/` ainda não viu essa correção.
-- Avaliar o checkpoint retreinado (`src/evaluate.py`) e ver se o
-  `--max-length 128` resolveu o corte de legenda e se o volume maior de
-  dados reduziu a repetição de legendas genéricas entre livros diferentes.
-- Se a repetição persistir, tentar `--no-freeze-vision` (ver nota acima).
+- Retreinar **com o encoder congelado** (padrão) usando os manifestos já
+  regenerados após o fix do vazamento de código do vendedor (ver nota
+  acima) — o último treino no Kaggle combinou o fix do vazamento com
+  `--no-freeze-vision` de uma vez, e o resultado ruim (mode collapse, ver
+  nota acima) veio do encoder destravado. Ainda não sabemos se o fix do
+  vazamento sozinho, com o encoder congelado como sempre, já melhora
+  alguma coisa — vale isolar essa variável rodando só ele.
+- Avaliar esse checkpoint (`src/evaluate.py`) e comparar com o atual
+  (treinado antes do fix do vazamento).
+- Se quiser tentar `--no-freeze-vision` de novo no futuro, meça com
+  hiperparâmetros diferentes (ver nota acima) — não repita a configuração
+  que já colapsou.
