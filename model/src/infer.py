@@ -32,14 +32,20 @@ def generate_caption(
     device: torch.device,
     max_new_tokens: int = 128,
     prefix: str | None = None,
+    num_beams: int = 4,
 ) -> str:
+    """`num_beams=4` (em vez do default greedy, num_beams=1): a decodificação
+    gulosa às vezes "engole" a primeira sub-palavra logo depois de um ponto
+    final (ex.: "novo. paginas" virava "novo.ginas") ou solta palavras
+    quebradas — beam search reduz esse tipo de artefato de geração (custo:
+    ~4x mais lento por chamada)."""
     image = Image.open(image_path).convert("RGB")
     if prefix:
         inputs = processor(images=image, text=prefix, return_tensors="pt").to(device)
     else:
         inputs = processor(images=image, return_tensors="pt").to(device)
     with torch.no_grad():
-        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
+        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, num_beams=num_beams)
     return processor.decode(output_ids[0], skip_special_tokens=True)
 
 
