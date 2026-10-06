@@ -42,6 +42,10 @@ function aplicarMetadados(metadados) {
   if (!form.value.editora && metadados.editora) form.value.editora = metadados.editora
   if (!form.value.ano && metadados.ano) form.value.ano = metadados.ano
   if (!form.value.isbn && metadados.isbn) form.value.isbn = metadados.isbn
+
+  // O título preenchido aqui não passa pelo blur do campo, que é quem
+  // normalmente dispara a busca de preços — então busca direto.
+  buscarPrecosAtualizados()
 }
 
 // Mantém o texto da localização (quando "Embutir localização na descrição"
