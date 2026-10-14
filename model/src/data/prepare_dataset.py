@@ -23,6 +23,11 @@ from src.config import DATASET_PROCESSED_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, V
 
 SELLER_DESC_HEADER = "Descricao do vendedor:"
 TRAILING_TAG_RE = re.compile(r"_[A-Za-z0-9]+_\.?\s*$")
+# ID interno de listagem (sempre 8-9 dígitos) que às vezes sobra no fim do
+# texto, ex.: "...sem grifos. - 201641077." — achado medindo outliers de
+# comprimento no dataset (ver model/README.md). Exige "-" explícito antes do
+# número pra não cortar um ano de 4 dígitos ou outro número de verdade.
+TRAILING_ID_RE = re.compile(r"\s*-\s*\d{7,}\.?\s*$")
 FOTO_ORIGINAL_RE = re.compile(r"foto original\.?", re.IGNORECASE)
 WHITESPACE_RE = re.compile(r"\s+")
 
@@ -82,6 +87,7 @@ def clean_caption(raw_text: str) -> str | None:
     if not text:
         return None
     text = TRAILING_TAG_RE.sub("", text).strip()
+    text = TRAILING_ID_RE.sub("", text).strip()
     text = FOTO_ORIGINAL_RE.sub("", text).strip()
     text = strip_leading_seller_code(text)
     text = WHITESPACE_RE.sub(" ", text).strip(" .") + "."

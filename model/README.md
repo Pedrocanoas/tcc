@@ -53,6 +53,38 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > validação **completo** (192 livros): similaridade média subiu de 0.29
 > (checkpoint anterior, dados com vazamento) pra **0.32** (checkpoint
 > novo). Melhora modesta mas real — promovido a `model/checkpoints/best/`.
+>
+> **Vazamento de ID no final da legenda (corrigido em 2026-10-13):**
+> investigando outliers de comprimento no dataset, achado um segundo
+> vazamento — **10,3% dos livros (197 de 1.918)** tinham um ID interno de
+> listagem (sempre 8-9 dígitos) sobrando no **final** da legenda, ex.:
+> `"...sem grifos, rabiscos ou anotações. - 201641077."`. Diferente do
+> vazamento de 2026-09-24 (que era no início do texto), esse só aparecia
+> depois de remover a tag de foto (`_PI1234567_`) do final, expondo o ID
+> que estava antes dela. `TRAILING_ID_RE` adicionado em `prepare_dataset.py`
+> corta esse padrão (exige "-" explícito antes do número ≥7 dígitos, pra
+> não arriscar cortar um ano de 4 dígitos); vazamento caiu de 10,3% pra 0%
+> sem encurtar nenhuma legenda indevidamente. **Ainda não retreinado** — ver
+> "Próximos passos".
+>
+> **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
+> (73 de 1.918) têm legenda bem mais longa que a média (>408 caracteres,
+> acima do limite IQR); dentro desses, uma fração pequena mas real mistura
+> **sinopse/resenha de marketing** (`"Resenha: ..."`, 0,3% / 6 livros) ou
+> **dimensões físicas** (`"Dimensões: 21 x 13.6 x 1.6 cm"`, 0,4% / 7
+> livros) dentro do campo de condição — conteúdo que não é "condição física
+> do livro" e ensina o modelo a às vezes gerar texto fora do escopo. Baixo
+> volume (<1% cada), não corrigido por ora — risco de um filtro automático
+> cortar conteúdo de condição real misturado no mesmo parágrafo.
+>
+> **Livros que são coleções/multi-volume:** ~5,8% dos livros (111 de
+> 1.918) são coleções ou kits de vários volumes (ex.: *"São 26 volumes;
+> coleção incompleta; As matérias completas são Matemática, Física..."*,
+> livro107) — a legenda muda de estrutura nesses casos (fala de vários
+> volumes/estados ao mesmo tempo, às vezes com `"coleção incompleta"`,
+> contagens, etc.), diferente do padrão de 1 livro = 1 estado. Ainda não
+> removidos/isolados do treino — ver "Próximos passos" sobre avaliar se
+> vale excluir ou treinar separado.
 
 ## Setup
 
@@ -270,12 +302,23 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
+- **Retreinar com o fix do ID no final** (ver nota acima) — ainda não
+  disparado; o checkpoint em produção foi treinado antes desse fix,
+  então ~10% dos exemplos de treino ainda ensinavam o modelo a terminar a
+  legenda com um número solto.
+- Decidir o que fazer com livros-coleção (~5,8% do dataset, ver nota
+  acima): manter misturado no treino (mais dado, mas muda a distribuição
+  da legenda), excluir do treino, ou treinar/avaliar separado. Não
+  decidido ainda.
+- Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
+  outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
+  o risco de cortar conteúdo de condição real no meio do parágrafo.
 - Se quiser tentar `--no-freeze-vision` de novo no futuro, meça com
   hiperparâmetros diferentes (ver nota acima) — não repita a configuração
   que já colapsou (lr uniforme 5e-5, 20 epochs, encoder inteiro
   destravado).
-- A melhora do fix de vazamento foi modesta (0.29 → 0.32) — o problema de
-  legendas genéricas/pouco diferenciadas por foto (ver "Limitação
-  conhecida" acima) continua em aberto; a causa raiz mais provável ainda é
-  o encoder congelado, mas destravá-lo precisa de uma configuração mais
-  cuidadosa do que a tentada até agora.
+- A melhora do fix de vazamento de código foi modesta (0.29 → 0.32) — o
+  problema de legendas genéricas/pouco diferenciadas por foto (ver
+  "Limitação conhecida" acima) continua em aberto; a causa raiz mais
+  provável ainda é o encoder congelado, mas destravá-lo precisa de uma
+  configuração mais cuidadosa do que a tentada até agora.
