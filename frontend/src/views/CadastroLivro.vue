@@ -42,6 +42,10 @@ function aplicarMetadados(metadados) {
   if (!form.value.editora && metadados.editora) form.value.editora = metadados.editora
   if (!form.value.ano && metadados.ano) form.value.ano = metadados.ano
   if (!form.value.isbn && metadados.isbn) form.value.isbn = metadados.isbn
+
+  // O autofill preenche o título via JS, não dispara o evento de blur do
+  // campo (que é o gatilho normal da busca de preço) — chama direto aqui.
+  if (form.value.titulo) buscarPrecosAtualizados()
 }
 
 // Mantém o texto da localização (quando "Embutir localização na descrição"
