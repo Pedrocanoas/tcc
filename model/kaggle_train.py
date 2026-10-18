@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--freeze-vision", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--exclude-colecoes", action="store_true")
     return parser.parse_args()
 
 
@@ -37,6 +38,8 @@ def main() -> None:
     original_argv = sys.argv
     try:
         sys.argv = ["prepare_dataset", "--val-ratio", str(args.val_ratio), "--seed", str(args.seed)]
+        if args.exclude_colecoes:
+            sys.argv.append("--exclude-colecoes")
         prepare_dataset()
         sys.argv = [
             "train",

@@ -49,6 +49,22 @@ LOCAL_CATEGORY_RE = re.compile(r"^local:\s*(?:(?!\S*\d)\S+\s+){0,4}", re.IGNOREC
 SHORT_CODE_DOT_RE = re.compile(r"^[a-z]{1,6}\d\w*\.\s*", re.IGNORECASE)
 CODE_SEPARATOR_RE = re.compile(r"\s*[-;]\s*")
 
+# Livro-coleção/multi-volume: a legenda fala de vários volumes/estados ao
+# mesmo tempo (ex.: "São 26 volumes; coleção incompleta; ..."), estrutura
+# bem diferente do padrão 1 livro = 1 estado — achado medindo outliers no
+# dataset (ver model/README.md). Usado por --exclude-colecoes.
+TITULO_RE = re.compile(r"^Titulo:\s*(.*)$", re.MULTILINE)
+COLECAO_CAPTION_RE = re.compile(
+    r"\b(\d+\s+volumes?|\d+\s+fasc[ií]culos?|\d+\s+livr(?:o|os)\b|caixa\s+com|box\s+com|"
+    r"cole[cç][aã]o\b|kit\s+com|s[aã]o\s+\d+|conjunto\s+de|\d+\s+exemplares?)",
+    re.IGNORECASE,
+)
+TITULO_MULTIVOL_RE = re.compile(r"\b(vol\.?\s*\d+|v\.\s*\d+|box\b|cole[cç][aã]o\b)\b", re.IGNORECASE)
+
+
+def is_colecao(titulo: str, caption: str) -> bool:
+    return bool(COLECAO_CAPTION_RE.search(caption) or TITULO_MULTIVOL_RE.search(titulo))
+
 
 def extract_seller_description(raw_text: str) -> str | None:
     if SELLER_DESC_HEADER not in raw_text:
@@ -94,7 +110,7 @@ def clean_caption(raw_text: str) -> str | None:
     return text if len(text) > 3 else None
 
 
-def collect_examples(raw_dir: Path) -> list[dict]:
+def collect_examples(raw_dir: Path, exclude_colecoes: bool = False) -> list[dict]:
     examples = []
     for book_dir in sorted(raw_dir.iterdir()):
         if not book_dir.is_dir():
@@ -103,9 +119,16 @@ def collect_examples(raw_dir: Path) -> list[dict]:
         if not descricao_path.exists():
             continue
 
-        caption = clean_caption(descricao_path.read_text(encoding="utf-8"))
+        raw_text = descricao_path.read_text(encoding="utf-8")
+        caption = clean_caption(raw_text)
         if not caption:
             continue
+
+        if exclude_colecoes:
+            titulo_match = TITULO_RE.search(raw_text)
+            titulo = titulo_match.group(1).strip() if titulo_match else ""
+            if is_colecao(titulo, caption):
+                continue
 
         photos = sorted(book_dir.glob("foto*.jpg"))
         for photo_path in photos:
@@ -144,9 +167,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--exclude-colecoes",
+        action="store_true",
+        help="remove livros-coleção/multi-volume do treino e da validação (ver is_colecao)",
+    )
     args = parser.parse_args()
 
-    examples = collect_examples(DATASET_RAW_DIR)
+    examples = collect_examples(DATASET_RAW_DIR, exclude_colecoes=args.exclude_colecoes)
     if not examples:
         raise SystemExit(f"Nenhum exemplo encontrado em {DATASET_RAW_DIR}")
 
