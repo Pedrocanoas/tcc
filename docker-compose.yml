@@ -7,6 +7,10 @@ services:
     environment:
       PORT: 3000
       CORS_ORIGIN: https://${DOMAIN:-localhost}
+      # vazia por padrão (usa o checkpoint fine-tuned); defina pra qualquer
+      # valor não-vazio pra testar com o BLIP "cru" (sem fine-tuning) pelo
+      # próprio frontend — ex.: TCC_USE_BASE_MODEL=1 docker compose up -d --build backend
+      TCC_USE_BASE_MODEL: ${TCC_USE_BASE_MODEL:-}
     volumes:
       - ./model/checkpoints:/app/model/checkpoints:ro
     expose:

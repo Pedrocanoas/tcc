@@ -13,6 +13,7 @@ Uso (chamado pelo backend/, não interativamente):
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -24,14 +25,22 @@ from src.prompt import build_prefix
 
 
 def main() -> None:
-    checkpoint = CHECKPOINTS_DIR / "best"
-    if not checkpoint.exists():
+    if os.environ.get("TCC_USE_BASE_MODEL"):
+        checkpoint = BASE_MODEL
         print(
-            f"[aviso] nenhum checkpoint treinado em {checkpoint}, usando o modelo base ({BASE_MODEL})",
+            f"[aviso] TCC_USE_BASE_MODEL definida, usando o modelo base sem fine-tuning ({BASE_MODEL})",
             file=sys.stderr,
             flush=True,
         )
-        checkpoint = BASE_MODEL
+    else:
+        checkpoint = CHECKPOINTS_DIR / "best"
+        if not checkpoint.exists():
+            print(
+                f"[aviso] nenhum checkpoint treinado em {checkpoint}, usando o modelo base ({BASE_MODEL})",
+                file=sys.stderr,
+                flush=True,
+            )
+            checkpoint = BASE_MODEL
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     processor, model = load_model(checkpoint, device)
