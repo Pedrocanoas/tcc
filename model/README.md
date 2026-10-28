@@ -64,8 +64,12 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > que estava antes dela. `TRAILING_ID_RE` adicionado em `prepare_dataset.py`
 > corta esse padrão (exige "-" explícito antes do número ≥7 dígitos, pra
 > não arriscar cortar um ano de 4 dígitos); vazamento caiu de 10,3% pra 0%
-> sem encurtar nenhuma legenda indevidamente. **Ainda não retreinado** — ver
-> "Próximos passos".
+> sem encurtar nenhuma legenda indevidamente. Retreinado e promovido a
+> `model/checkpoints/best/` em 2026-10-18 — sob o mesmo decoding (beam
+> search) do checkpoint anterior, a similaridade média no split de
+> validação completo (192 livros) ficou em **0.34** nos dois, ou seja, essa
+> troca não mudou a métrica (era um empate, não uma melhora) — a correção
+> valeu pela qualidade do dado de treino, não por ganho de similaridade.
 >
 > **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
 > (73 de 1.918) têm legenda bem mais longa que a média (>408 caracteres,
@@ -82,9 +86,26 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > coleção incompleta; As matérias completas são Matemática, Física..."*,
 > livro107) — a legenda muda de estrutura nesses casos (fala de vários
 > volumes/estados ao mesmo tempo, às vezes com `"coleção incompleta"`,
-> contagens, etc.), diferente do padrão de 1 livro = 1 estado. Ainda não
-> removidos/isolados do treino — ver "Próximos passos" sobre avaliar se
-> vale excluir ou treinar separado.
+> contagens, etc.), diferente do padrão de 1 livro = 1 estado. Experimento
+> em andamento pra medir se excluir essas do treino melhora a qualidade nos
+> livros normais — ver "Próximos passos".
+>
+> **Bug no split treino/validação do experimento `--exclude-colecoes`
+> (corrigido em 2026-10-28):** a primeira versão de `--exclude-colecoes`
+> removia os livros-coleção **antes** de sortear treino/validação
+> (`collect_examples` já devolvia a lista filtrada pra `split_by_book`).
+> Isso muda a lista de `book_ids` embaralhada e quebra o sorteio inteiro —
+> o val set gerado com a flag não tem nenhuma relação com o val set gerado
+> sem ela, e pior, livros que o checkpoint de produção viu no treino podiam
+> cair nessa nova validação. Qualquer comparação entre os dois seria
+> inválida. Corrigido: `collect_examples` agora sempre coleta todos os
+> livros e marca cada exemplo com `"colecao": true/false`; o split
+> (`split_by_book`) roda sempre sobre a população inteira, e só depois do
+> split a flag `--exclude-colecoes` remove as coleções **do treino**
+> (nunca da validação, que fica idêntica com ou sem a flag). Pra avaliar
+> excluindo coleções, `src/evaluate.py` ganhou a mesma flag, que filtra
+> pelo campo `"colecao"` do manifesto na hora de pontuar, sem afetar o
+> split.
 
 ## Setup
 
@@ -302,14 +323,12 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- **Retreinar com o fix do ID no final** (ver nota acima) — ainda não
-  disparado; o checkpoint em produção foi treinado antes desse fix,
-  então ~10% dos exemplos de treino ainda ensinavam o modelo a terminar a
-  legenda com um número solto.
-- Decidir o que fazer com livros-coleção (~5,8% do dataset, ver nota
-  acima): manter misturado no treino (mais dado, mas muda a distribuição
-  da legenda), excluir do treino, ou treinar/avaliar separado. Não
-  decidido ainda.
+- Terminar o experimento `--exclude-colecoes`: com o bug do split
+  corrigido (ver nota acima), falta disparar um treino no Kaggle com a
+  flag e comparar com o checkpoint de produção, os dois avaliados no
+  **mesmo** split de validação sem coleções (`src/evaluate.py
+  --exclude-colecoes`). Decide se vale excluir coleções do treino em
+  definitivo.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.

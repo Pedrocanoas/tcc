@@ -41,6 +41,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINTS_DIR / "best")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--exclude-colecoes",
+        action="store_true",
+        help="ignora livros-coleção/multi-volume do split na hora de avaliar (campo 'colecao' do manifesto)",
+    )
     return parser.parse_args()
 
 
@@ -56,6 +61,8 @@ def main() -> None:
     processor, model = load_model(checkpoint, device)
 
     examples = load_examples(manifest)
+    if args.exclude_colecoes:
+        examples = [ex for ex in examples if not ex.get("colecao")]
     if args.limit:
         examples = examples[: args.limit]
 

@@ -110,7 +110,11 @@ def clean_caption(raw_text: str) -> str | None:
     return text if len(text) > 3 else None
 
 
-def collect_examples(raw_dir: Path, exclude_colecoes: bool = False) -> list[dict]:
+def collect_examples(raw_dir: Path) -> list[dict]:
+    """Coleta TODOS os livros, inclusive coleções — o sorteio treino/validação
+    (split_by_book) precisa ver a população inteira pra não mudar de corrida
+    pra corrida. Quem decide excluir coleções é o chamador, depois do split
+    (ver --exclude-colecoes em main())."""
     examples = []
     for book_dir in sorted(raw_dir.iterdir()):
         if not book_dir.is_dir():
@@ -124,11 +128,9 @@ def collect_examples(raw_dir: Path, exclude_colecoes: bool = False) -> list[dict
         if not caption:
             continue
 
-        if exclude_colecoes:
-            titulo_match = TITULO_RE.search(raw_text)
-            titulo = titulo_match.group(1).strip() if titulo_match else ""
-            if is_colecao(titulo, caption):
-                continue
+        titulo_match = TITULO_RE.search(raw_text)
+        titulo = titulo_match.group(1).strip() if titulo_match else ""
+        colecao = is_colecao(titulo, caption)
 
         photos = sorted(book_dir.glob("foto*.jpg"))
         for photo_path in photos:
@@ -137,6 +139,7 @@ def collect_examples(raw_dir: Path, exclude_colecoes: bool = False) -> list[dict
                     "livro_id": book_dir.name,
                     "image": photo_path.relative_to(raw_dir).as_posix(),
                     "caption": caption,
+                    "colecao": colecao,
                 }
             )
     return examples
@@ -170,15 +173,25 @@ def main() -> None:
     parser.add_argument(
         "--exclude-colecoes",
         action="store_true",
-        help="remove livros-coleção/multi-volume do treino e da validação (ver is_colecao)",
+        help=(
+            "remove livros-coleção/multi-volume do treino (não da validação — "
+            "o split já foi decidido com todos os livros, pra ficar comparável "
+            "com uma corrida sem essa flag; ver is_colecao e o campo 'colecao' "
+            "no manifesto)"
+        ),
     )
     args = parser.parse_args()
 
-    examples = collect_examples(DATASET_RAW_DIR, exclude_colecoes=args.exclude_colecoes)
+    # O split é feito com TODOS os livros antes de qualquer filtro, senão
+    # --exclude-colecoes muda o sorteio treino/validação e invalida a
+    # comparação com uma corrida sem a flag (ver model/README.md).
+    examples = collect_examples(DATASET_RAW_DIR)
     if not examples:
         raise SystemExit(f"Nenhum exemplo encontrado em {DATASET_RAW_DIR}")
 
     train, val = split_by_book(examples, args.val_ratio, args.seed)
+    if args.exclude_colecoes:
+        train = [ex for ex in train if not ex["colecao"]]
     write_jsonl(TRAIN_MANIFEST, train)
     write_jsonl(VAL_MANIFEST, val)
 
