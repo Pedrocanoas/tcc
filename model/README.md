@@ -86,9 +86,16 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > coleção incompleta; As matérias completas são Matemática, Física..."*,
 > livro107) — a legenda muda de estrutura nesses casos (fala de vários
 > volumes/estados ao mesmo tempo, às vezes com `"coleção incompleta"`,
-> contagens, etc.), diferente do padrão de 1 livro = 1 estado. Experimento
-> em andamento pra medir se excluir essas do treino melhora a qualidade nos
-> livros normais — ver "Próximos passos".
+> contagens, etc.), diferente do padrão de 1 livro = 1 estado. **Testado em
+> 2026-10-28** (`--exclude-colecoes`, já com o fix do split — ver nota
+> abaixo): checkpoint treinado sem as coleções e checkpoint de produção
+> avaliados no mesmo split de validação sem coleções (180 livros) deram a
+> **mesma** similaridade média, **0.34**. Livro a livro o resultado muda
+> bastante pra ambos os lados (ex.: livro1299 vai de 0.06 pra 0.58, livro657
+> cai de 0.96 pra 0.50), mas se cancela na média — não há sinal de que
+> excluir coleções do treino ajude (ou prejudique) a qualidade nos livros
+> normais, pela métrica de similaridade usada. Mantido misturado no treino
+> (mais dado, nenhuma perda medida).
 >
 > **Bug no split treino/validação do experimento `--exclude-colecoes`
 > (corrigido em 2026-10-28):** a primeira versão de `--exclude-colecoes`
@@ -323,12 +330,6 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- Terminar o experimento `--exclude-colecoes`: com o bug do split
-  corrigido (ver nota acima), falta disparar um treino no Kaggle com a
-  flag e comparar com o checkpoint de produção, os dois avaliados no
-  **mesmo** split de validação sem coleções (`src/evaluate.py
-  --exclude-colecoes`). Decide se vale excluir coleções do treino em
-  definitivo.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.
