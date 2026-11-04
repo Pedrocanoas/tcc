@@ -40,6 +40,19 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > semânticas (BERTScore, embedding de sentença, LLM como juiz) mediriam
 > isso melhor, mas não foram implementadas — ver "Próximos passos".
 >
+> **Reordenação de cláusulas por categoria tentada e descartada
+> (2026-11-03):** pra tentar neutralizar a variação de estilo acima,
+> foi implementada uma reordenação baseada em regra — cada cláusula da
+> legenda (separada por ";"/".") classificada por palavra-chave (material,
+> estado geral, capa/lombada, miolo/páginas, marcas) e reordenada numa
+> ordem fixa, sem reescrever nenhum texto. Testado em amostras reais antes
+> de treinar qualquer coisa: a reordenação quebra ligação lógica entre
+> frases adjacentes em uma fração relevante dos casos (ex.: separa "a
+> lombada está descolada" de "mas o miolo permanece firme", que eram uma
+> frase só), o que ensinaria o modelo a gerar frases mais desconectadas, não
+> menos. Descartado sem treinar — o risco de piorar a qualidade do texto
+> superou o ganho especulativo na métrica de similaridade.
+>
 > **`--no-freeze-vision` tentado e descartado (2026-09-26):** destravar o
 > encoder com os hiperparâmetros atuais (lr=5e-5 uniforme, 20 epochs,
 > ~2.653 exemplos) piora a situação em vez de ajudar — colapso de modo
@@ -87,6 +100,25 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > validação completo (192 livros) ficou em **0.34** nos dois, ou seja, essa
 > troca não mudou a métrica (era um empate, não uma melhora) — a correção
 > valeu pela qualidade do dado de treino, não por ganho de similaridade.
+>
+> **Vazamento de código curto sem dígito no início da legenda (corrigido em
+> 2026-11-03):** investigando se havia duplicação de informação nas
+> legendas (motivado por uma pergunta sobre variação de estilo entre
+> vendedores), achado um terceiro vazamento de código interno — **6,9% dos
+> livros (133 de 1.918)** tinham uma abreviação curta (2-5 letras, ex.:
+> `"LB; Brochura..."`, `"REC.AP - J5570 - folclore - Brochura..."`) sobrando
+> no início da legenda. Os dois fixes anteriores (`strip_leading_seller_code`)
+> só cortavam prefixo com dígito (código numérico) — esse tipo de código
+> não tem dígito nenhum, então passava direto. `strip_leading_seller_code`
+> ganhou um segundo critério: prefixo curto (≤10 caracteres) que não é uma
+> palavra real conhecida (`REAL_SHORT_WORDS`) também é cortado, mas só
+> quando não tem STOPWORDS nem termo bibliográfico (`BIBLIOGRAPHIC_MARKER_RE`
+> — "edição", "volume", "série" etc., pra não cortar informação real em
+> cascata depois de remover o código). Testado comparando as 1.918
+> legendas linha a linha contra a versão anterior do código antes de
+> promover — zero casos de texto real cortado indevidamente na versão
+> final. Vazamento caiu de 6,9% pra 0%. Ainda não retreinado — ver
+> "Próximos passos".
 >
 > **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
 > (73 de 1.918) têm legenda bem mais longa que a média (>408 caracteres,
@@ -347,6 +379,10 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
+- **Retreinar com o fix do código curto sem dígito** (ver nota acima) —
+  ainda não disparado; o checkpoint em produção foi treinado antes desse
+  fix, então ~6,9% dos exemplos de treino ainda tinham um código de
+  vendedor sobrando no início da legenda.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.

@@ -17,6 +17,7 @@ import argparse
 import json
 import random
 import re
+import unicodedata
 from pathlib import Path
 
 from src.config import DATASET_PROCESSED_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, VAL_MANIFEST
@@ -41,13 +42,39 @@ STOPWORDS = {
     "são", "pela", "pelo", "bom", "boa", "ótimo", "otimo",
 }
 
+# Palavras reais (não código) curtas o bastante pra colidir com a heurística
+# de "abreviação curta sem dígito" abaixo — achadas revisando os 180 casos
+# que essa heurística pegaria sem essa lista (ver model/README.md).
+REAL_SHORT_WORDS = {
+    "livro", "livros", "album", "versao", "encadernado", "espiral", "box",
+    "colecao", "colecoes", "arte", "raro", "capa", "brochura", "conservado",
+    "antigo", "usado", "novo", "lacrado", "semi", "seminovo", "importado",
+    "foto", "estado", "regular",
+}
+
+# Termos bibliográficos que têm dígito (ex.: "1ª edição", "Volume 2") mas
+# nunca são código do vendedor — sem essa checagem extra, um código sem
+# dígito logo antes (ex.: "Lij; 1ª edição; ...") faz o laço continuar e
+# apagar essa informação real também, já que o caminho "tem dígito" abaixo
+# só olha STOPWORDS. Achado testando o fix do código curto (ver README.md).
+BIBLIOGRAPHIC_MARKER_RE = re.compile(r"\b(edi[cç][aã]o|volume|s[eé]rie|exemplares?)\b", re.IGNORECASE)
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
+
+
 # Formatos observados no scraping: "EI805/350AP - <texto>",
 # "Local: <categoria> <código> - <texto>", "SKU: <número>. <código>; <texto>",
-# além de variações com "<código>. <texto>" no lugar do " - ".
+# além de variações com "<código>. <texto>" no lugar do " - ", e abreviações
+# de 2-4 letras sem dígito nenhum ("LB; Brochura...", "REC.AP - Brochura...",
+# "RL - Brochura..." — achado revisando ~180 livros com esse padrão, ver
+# model/README.md).
 SKU_PREFIX_RE = re.compile(r"^sku:\s*\d+\.\s*", re.IGNORECASE)
 LOCAL_CATEGORY_RE = re.compile(r"^local:\s*(?:(?!\S*\d)\S+\s+){0,4}", re.IGNORECASE)
 SHORT_CODE_DOT_RE = re.compile(r"^[a-z]{1,6}\d\w*\.\s*", re.IGNORECASE)
 CODE_SEPARATOR_RE = re.compile(r"\s*[-;]\s*")
+MAX_SHORT_CODE_LEN = 10
 
 # Livro-coleção/multi-volume: a legenda fala de vários volumes/estados ao
 # mesmo tempo (ex.: "São 26 volumes; coleção incompleta; ..."), estrutura
@@ -74,10 +101,12 @@ def extract_seller_description(raw_text: str) -> str | None:
 
 def strip_leading_seller_code(text: str, max_iterations: int = 8) -> str:
     """Remove o código interno do vendedor (categoria/prateleira + SKU) do
-    início da legenda. Um prefixo só é cortado se, até o próximo separador
-    (" - ", ";" ou "<código>."), tiver algum dígito (todo código observado
-    tem número; "brochura", "novo", "lacrado" etc. não têm) e nenhuma
-    STOPWORDS — os dois sinais juntos distinguem código de início de frase."""
+    início da legenda. Um prefixo até o próximo separador (" - ", ";" ou
+    "<código>.") é cortado se tiver algum dígito (todo código numérico tem
+    número; "brochura", "novo", "lacrado" etc. não têm) OU se for uma
+    abreviação curta (≤10 caracteres, ex.: "LB", "REC.AP") que não é uma
+    palavra real conhecida — e, nos dois casos, não tiver nenhuma STOPWORD.
+    Esses sinais juntos distinguem código de início de frase real."""
     text = LOCAL_CATEGORY_RE.sub("", text)
     text = SKU_PREFIX_RE.sub("", text)
     for _ in range(max_iterations):
@@ -89,11 +118,22 @@ def strip_leading_seller_code(text: str, max_iterations: int = 8) -> str:
         if not sep_match:
             break
         prefix = text[: sep_match.start()]
-        if not any(char.isdigit() for char in prefix):
-            break
         words = re.findall(r"[^\s:]+", prefix.lower())
-        if any(word in STOPWORDS for word in words):
+        if any(word in STOPWORDS for word in words) or BIBLIOGRAPHIC_MARKER_RE.search(prefix):
             break
+        has_digit = any(char.isdigit() for char in prefix)
+        if has_digit:
+            # comportamento original: dígito + nenhuma STOPWORDS já basta.
+            pass
+        else:
+            # novo: sem dígito, só aceita como código se for uma abreviação
+            # curta E nenhuma palavra do prefixo for uma palavra real
+            # conhecida (ver REAL_SHORT_WORDS) — mais estrito que o caminho
+            # com dígito, pra não arriscar cortar início de frase real.
+            normalized_words = [_strip_accents(w) for w in words]
+            is_short_abbreviation = len(prefix.strip()) <= MAX_SHORT_CODE_LEN
+            if not is_short_abbreviation or any(word in REAL_SHORT_WORDS for word in normalized_words):
+                break
         text = text[sep_match.end() :]
     return text.strip()
 
