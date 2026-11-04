@@ -23,6 +23,23 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > livros com condições bem diferentes — indício de que o encoder congelado
 > não está diferenciando as fotos o suficiente.
 >
+> **Limitação da métrica de avaliação:** `src/evaluate.py` usa
+> `difflib.SequenceMatcher` (similaridade de sequência de caracteres) entre
+> a legenda gerada e a legenda original do vendedor. Essa legenda original é
+> escrita por uma pessoa diferente a cada livro, com estilo próprio — ordem
+> das frases, escolha de palavras, nível de detalhe variam mesmo quando o
+> conteúdo descrito é o mesmo. `SequenceMatcher` não entende sinônimo nem
+> reordenação: duas frases com o mesmo significado mas estrutura diferente
+> pontuam baixo (ex.: só reordenar as mesmas frases de uma legenda de
+> exemplo já cai de 1.0 pra ~0.5). Então os valores absolutos reportados
+> aqui (0.34, 0.11 etc.) são um **piso pessimista** — a métrica mistura erro
+> real do modelo com variação de estilo do rotulador humano, e não dá pra
+> ler "0.34" como "34% de acerto". As **comparações relativas** (com vs.
+> sem fine-tuning, com vs. sem coleções no treino) continuam válidas, porque
+> o mesmo ruído de estilo afeta os dois lados igualmente. Métricas
+> semânticas (BERTScore, embedding de sentença, LLM como juiz) mediriam
+> isso melhor, mas não foram implementadas — ver "Próximos passos".
+>
 > **`--no-freeze-vision` tentado e descartado (2026-09-26):** destravar o
 > encoder com os hiperparâmetros atuais (lr=5e-5 uniforme, 20 epochs,
 > ~2.653 exemplos) piora a situação em vez de ajudar — colapso de modo
@@ -342,3 +359,9 @@ o download do checkpoint continua manual (passo 4 acima).
   "Limitação conhecida" acima) continua em aberto; a causa raiz mais
   provável ainda é o encoder congelado, mas destravá-lo precisa de uma
   configuração mais cuidadosa do que a tentada até agora.
+- Trocar/complementar `difflib.SequenceMatcher` por uma métrica semântica
+  (BERTScore, similaridade de embedding de sentença, ou um LLM como juiz)
+  em `src/evaluate.py` — a métrica atual penaliza variação de estilo do
+  rotulador humano tanto quanto erro real do modelo (ver "Limitação da
+  métrica de avaliação" acima), então os valores absolutos reportados são
+  pessimistas mesmo quando as comparações relativas são válidas.
