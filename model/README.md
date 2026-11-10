@@ -102,22 +102,31 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > valeu pela qualidade do dado de treino, não por ganho de similaridade.
 >
 > **Vazamento de código curto sem dígito no início da legenda (corrigido em
-> 2026-11-03):** investigando se havia duplicação de informação nas
+> 2026-11-03, promovido em 2026-11-09, limite de tamanho ajustado em
+> 2026-11-10):** investigando se havia duplicação de informação nas
 > legendas (motivado por uma pergunta sobre variação de estilo entre
-> vendedores), achado um terceiro vazamento de código interno — **6,9% dos
-> livros (133 de 1.918)** tinham uma abreviação curta (2-5 letras, ex.:
-> `"LB; Brochura..."`, `"REC.AP - J5570 - folclore - Brochura..."`) sobrando
-> no início da legenda. Os dois fixes anteriores (`strip_leading_seller_code`)
-> só cortavam prefixo com dígito (código numérico) — esse tipo de código
-> não tem dígito nenhum, então passava direto. `strip_leading_seller_code`
-> ganhou um segundo critério: prefixo curto (≤10 caracteres) que não é uma
-> palavra real conhecida (`REAL_SHORT_WORDS`) também é cortado, mas só
-> quando não tem STOPWORDS nem termo bibliográfico (`BIBLIOGRAPHIC_MARKER_RE`
-> — "edição", "volume", "série" etc., pra não cortar informação real em
-> cascata depois de remover o código). Testado comparando as 1.918
-> legendas linha a linha contra a versão anterior do código antes de
-> promover — zero casos de texto real cortado indevidamente na versão
-> final. Vazamento caiu de 6,9% pra 0%. Ainda não retreinado — ver
+> vendedores), achado um terceiro vazamento de código interno — **7,6% dos
+> livros (146 de 1.918)** tinham uma abreviação curta (2-11 letras, ex.:
+> `"LB; Brochura..."`, `"REC. AP/ FI - Brochura..."`) sobrando no início da
+> legenda. Os dois fixes anteriores (`strip_leading_seller_code`) só
+> cortavam prefixo com dígito (código numérico) — esse tipo de código não
+> tem dígito nenhum, então passava direto. `strip_leading_seller_code`
+> ganhou um segundo critério: prefixo curto (≤15 caracteres — ajustado de
+> 10 pra 15 depois de achar casos como `"REC. AP/ FI"`, 11 caracteres, que
+> ainda escapavam) que não é uma palavra real conhecida (`REAL_SHORT_WORDS`)
+> também é cortado, mas só quando não tem STOPWORDS nem termo
+> bibliográfico (`BIBLIOGRAPHIC_MARKER_RE` — "edição", "volume", "série"
+> etc., pra não cortar informação real em cascata depois de remover o
+> código). Testado comparando as 1.918 legendas linha a linha contra a
+> versão anterior do código antes de promover, e de novo depois do ajuste
+> de limite — zero casos de texto real cortado indevidamente. Vazamento
+> caiu de 7,6% pra 0%. Retreinado e promovido a `model/checkpoints/best/`
+> em 2026-11-09 (checkpoint anterior preservado em
+> `checkpoints/best_backup_pre_short_code_fix/`); no split de validação
+> completo (192 livros), similaridade média ficou em **0.33** (vs. 0.34 do
+> checkpoint anterior) — outro empate dentro do ruído da métrica (ver nota
+> acima), valendo pela qualidade do dado. Esse checkpoint ainda não reflete
+> o ajuste de limite de 2026-11-10 (mais 13 livros corrigidos) — ver
 > "Próximos passos".
 >
 > **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
@@ -379,10 +388,11 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- **Retreinar com o fix do código curto sem dígito** (ver nota acima) —
-  ainda não disparado; o checkpoint em produção foi treinado antes desse
-  fix, então ~6,9% dos exemplos de treino ainda tinham um código de
-  vendedor sobrando no início da legenda.
+- **Retreinar com o ajuste de limite do fix de código curto** (ver nota
+  acima) — o checkpoint em produção foi treinado com o limite de 10
+  caracteres, que ainda deixava passar ~13 livros (ex.: `"REC. AP/ FI -"`,
+  11 caracteres); o limite de 15 corrige isso, mas ainda não foi usado
+  num treino.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.

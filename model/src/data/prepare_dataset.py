@@ -74,7 +74,7 @@ SKU_PREFIX_RE = re.compile(r"^sku:\s*\d+\.\s*", re.IGNORECASE)
 LOCAL_CATEGORY_RE = re.compile(r"^local:\s*(?:(?!\S*\d)\S+\s+){0,4}", re.IGNORECASE)
 SHORT_CODE_DOT_RE = re.compile(r"^[a-z]{1,6}\d\w*\.\s*", re.IGNORECASE)
 CODE_SEPARATOR_RE = re.compile(r"\s*[-;]\s*")
-MAX_SHORT_CODE_LEN = 10
+MAX_SHORT_CODE_LEN = 15
 
 # Livro-coleção/multi-volume: a legenda fala de vários volumes/estados ao
 # mesmo tempo (ex.: "São 26 volumes; coleção incompleta; ..."), estrutura
