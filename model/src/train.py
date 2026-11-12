@@ -41,6 +41,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--freeze-vision", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
+        "--unfreeze-vision-layers",
+        type=int,
+        default=0,
+        help=(
+            "com o encoder congelado, destrava só as N últimas camadas dele (+ tabela de posições e "
+            "post_layernorm) — destravar o encoder inteiro já deu mode collapse (ver model/README.md)"
+        ),
+    )
+    parser.add_argument(
+        "--vision-lr",
+        type=float,
+        default=None,
+        help="learning rate dos parâmetros treináveis do encoder (padrão = --lr)",
+    )
+    parser.add_argument(
         "--image-size",
         type=int,
         default=None,
@@ -66,6 +81,15 @@ def main() -> None:
     if args.freeze_vision:
         for param in model.vision_model.parameters():
             param.requires_grad = False
+        if args.unfreeze_vision_layers:
+            vision = model.vision_model
+            # a tabela de posições entra junto: com --image-size ela é interpolada e
+            # precisa poder se ajustar ao novo grid de patches
+            unfrozen = [vision.embeddings.position_embedding, *vision.post_layernorm.parameters()]
+            for layer in vision.encoder.layers[-args.unfreeze_vision_layers :]:
+                unfrozen += list(layer.parameters())
+            for param in unfrozen:
+                param.requires_grad = True
 
     train_ds = BookConditionDataset(TRAIN_MANIFEST, processor, args.max_length)
     val_ds = BookConditionDataset(VAL_MANIFEST, processor, args.max_length)
@@ -75,8 +99,18 @@ def main() -> None:
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size)
 
-    trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, lr=args.lr)
+    vision_param_ids = {id(p) for p in model.vision_model.parameters()}
+    vision_params = [p for p in model.vision_model.parameters() if p.requires_grad]
+    other_params = [p for p in model.parameters() if p.requires_grad and id(p) not in vision_param_ids]
+    vision_lr = args.vision_lr if args.vision_lr is not None else args.lr
+    param_groups = [{"params": other_params, "lr": args.lr}]
+    if vision_params:
+        param_groups.append({"params": vision_params, "lr": vision_lr})
+    print(
+        f"parâmetros treináveis: decoder/resto={sum(p.numel() for p in other_params) / 1e6:.1f}M (lr={args.lr}), "
+        f"encoder={sum(p.numel() for p in vision_params) / 1e6:.1f}M (lr={vision_lr})"
+    )
+    optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     best_val_loss = float("inf")
