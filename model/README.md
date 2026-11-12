@@ -125,9 +125,33 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > `checkpoints/best_backup_pre_short_code_fix/`); no split de validação
 > completo (192 livros), similaridade média ficou em **0.33** (vs. 0.34 do
 > checkpoint anterior) — outro empate dentro do ruído da métrica (ver nota
-> acima), valendo pela qualidade do dado. Esse checkpoint ainda não reflete
-> o ajuste de limite de 2026-11-10 (mais 13 livros corrigidos) — ver
-> "Próximos passos".
+> acima), valendo pela qualidade do dado. Retreinado de novo com o limite de
+> 15 caracteres (mais 13 livros corrigidos) e promovido em 2026-11-11:
+> **0.34** no mesmo split (checkpoint de limite 10 preservado em
+> `checkpoints/best_backup_v1_short_code_fix/`). Esse é o checkpoint de
+> produção atual.
+>
+> **Resolução de entrada 576×576 tentada e descartada (2026-11-12):** o
+> BLIP base foi pré-treinado em 384×384 (patches de 16 px, 577 tokens de
+> imagem). `--image-size 576` em `train.py` redimensiona as fotos pra
+> 576×576 e interpola a tabela de posições dos patches
+> (`interpolate_pos_encoding`, 1.297 tokens) — o tamanho fica salvo no
+> processor do checkpoint, e `infer.py` detecta sozinho. As fotos do
+> dataset têm 600×800 (algumas 527×800), então 576 já é praticamente o teto
+> de resolução útil; acima disso seria só ampliar a imagem. Treinado com a
+> mesma configuração do checkpoint de produção (encoder congelado,
+> `--exclude-colecoes`, 20 epochs), só a resolução diferente. No split de
+> validação completo (192 livros): **0.31** vs. **0.34** do 384 — pior,
+> e não é só ruído desta vez: comparando livro a livro, a diferença média
+> é −0.028 com intervalo de confiança de 95% (bootstrap) de [−0.051,
+> −0.007], que não inclui zero (576 melhor em 58 livros, pior em 77, igual
+> em 57). As legendas geradas também ficaram **menos variadas** (86
+> legendas distintas em 192 livros, vs. 97 no 384; a mais repetida aparece
+> 22 vezes, vs. 18) — o modelo passou a diferenciar menos as fotos.
+> Interpretação mais provável: o encoder congelado nunca viu posições
+> interpoladas, e as features que ele produz em 576 são piores, não mais
+> detalhadas. Custo medido na CPU: o encoder fica 2,75× mais lento por
+> foto (1,1 s → 3,0 s). Não promovido.
 >
 > **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
 > (73 de 1.918) têm legenda bem mais longa que a média (>408 caracteres,
@@ -152,8 +176,12 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > bastante pra ambos os lados (ex.: livro1299 vai de 0.06 pra 0.58, livro657
 > cai de 0.96 pra 0.50), mas se cancela na média — não há sinal de que
 > excluir coleções do treino ajude (ou prejudique) a qualidade nos livros
-> normais, pela métrica de similaridade usada. Mantido misturado no treino
-> (mais dado, nenhuma perda medida).
+> normais, pela métrica de similaridade usada. **Atenção:** a flag ficou
+> ligada no notebook do Kaggle depois desse teste, então os retreinos
+> seguintes (os de 2026-11-09 e 2026-11-11, do fix de código curto) também
+> foram treinados **sem** as coleções — o checkpoint de produção atual não
+> tem coleções no treino. Como o teste acima deu empate, isso não muda a
+> qualidade medida.
 >
 > **Bug no split treino/validação do experimento `--exclude-colecoes`
 > (corrigido em 2026-10-28):** a primeira versão de `--exclude-colecoes`
@@ -388,11 +416,11 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- **Retreinar com o ajuste de limite do fix de código curto** (ver nota
-  acima) — o checkpoint em produção foi treinado com o limite de 10
-  caracteres, que ainda deixava passar ~13 livros (ex.: `"REC. AP/ FI -"`,
-  11 caracteres); o limite de 15 corrige isso, mas ainda não foi usado
-  num treino.
+- Resolução maior só deve valer a pena junto com o encoder ajustado
+  gradualmente (ex.: destravar só as últimas camadas com LR menor), já que
+  576 com o encoder congelado piorou (ver nota acima) — e o teto é baixo,
+  porque as fotos do dataset têm só 600×800. Fotos de perto dos defeitos
+  (já em 384) são a alternativa mais barata pra mostrar detalhe.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.
