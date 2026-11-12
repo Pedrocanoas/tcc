@@ -17,15 +17,16 @@ from transformers import BlipForConditionalGeneration, BlipProcessor
 
 from src.config import BASE_MODEL, CHECKPOINTS_DIR, TRAIN_MANIFEST, VAL_MANIFEST
 from src.dataset import BookConditionDataset
+from src.infer import needs_pos_interpolation
 
 
-def evaluate(model, loader: DataLoader, device: torch.device) -> float:
+def evaluate(model, loader: DataLoader, device: torch.device, interpolate: bool) -> float:
     model.eval()
     total_loss, n = 0.0, 0
     with torch.no_grad():
         for batch in loader:
             batch = {key: value.to(device) for key, value in batch.items()}
-            outputs = model(**batch)
+            outputs = model(**batch, interpolate_pos_encoding=interpolate)
             batch_size = batch["pixel_values"].size(0)
             total_loss += outputs.loss.item() * batch_size
             n += batch_size
@@ -39,6 +40,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--freeze-vision", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--image-size",
+        type=int,
+        default=None,
+        help="resolução de entrada (quadrada); padrão = 384 do BLIP base. Ex.: 576 (ver model/README.md)",
+    )
     parser.add_argument("--limit-train", type=int, default=None, help="usa só os N primeiros exemplos (debug)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--output-dir", type=Path, default=CHECKPOINTS_DIR)
@@ -51,6 +58,10 @@ def main() -> None:
 
     processor = BlipProcessor.from_pretrained(BASE_MODEL)
     model = BlipForConditionalGeneration.from_pretrained(BASE_MODEL).to(device)
+    if args.image_size:
+        processor.image_processor.size = {"height": args.image_size, "width": args.image_size}
+    interpolate = needs_pos_interpolation(processor, model)
+    print(f"resolução de entrada: {processor.image_processor.size} (interpolate_pos_encoding={interpolate})")
 
     if args.freeze_vision:
         for param in model.vision_model.parameters():
@@ -75,7 +86,7 @@ def main() -> None:
         running_loss = 0.0
         for step, batch in enumerate(train_loader, start=1):
             batch = {key: value.to(device) for key, value in batch.items()}
-            outputs = model(**batch)
+            outputs = model(**batch, interpolate_pos_encoding=interpolate)
             loss = outputs.loss
 
             optimizer.zero_grad()
@@ -85,7 +96,7 @@ def main() -> None:
             running_loss += loss.item()
             print(f"epoch {epoch} step {step}/{len(train_loader)} loss {loss.item():.4f}")
 
-        val_loss = evaluate(model, val_loader, device) if len(val_ds) else float("nan")
+        val_loss = evaluate(model, val_loader, device, interpolate) if len(val_ds) else float("nan")
         train_loss = running_loss / max(len(train_loader), 1)
         print(f"== epoch {epoch}: train_loss={train_loss:.4f} val_loss={val_loss:.4f} ==")
 

@@ -23,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--exclude-colecoes", action="store_true")
+    parser.add_argument("--image-size", type=int, default=None)
     return parser.parse_args()
 
 
@@ -53,6 +54,8 @@ def main() -> None:
             str(args.max_length),
             "--freeze-vision" if args.freeze_vision else "--no-freeze-vision",
         ]
+        if args.image_size:
+            sys.argv += ["--image-size", str(args.image_size)]
         train()
     finally:
         sys.argv = original_argv

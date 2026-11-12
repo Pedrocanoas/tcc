@@ -18,6 +18,13 @@ from src.config import BASE_MODEL, CHECKPOINTS_DIR
 from src.prompt import build_prefix
 
 
+def needs_pos_interpolation(processor, model) -> bool:
+    """O BLIP base foi pré-treinado em 384×384; um checkpoint treinado com
+    --image-size diferente salva esse tamanho no processor, e aí a tabela de
+    posições dos patches precisa ser interpolada (ver model/README.md)."""
+    return processor.image_processor.size["height"] != model.config.vision_config.image_size
+
+
 def load_model(checkpoint: str | Path, device: torch.device):
     processor = BlipProcessor.from_pretrained(checkpoint)
     model = BlipForConditionalGeneration.from_pretrained(checkpoint).to(device)
@@ -45,7 +52,12 @@ def generate_caption(
     else:
         inputs = processor(images=image, return_tensors="pt").to(device)
     with torch.no_grad():
-        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, num_beams=num_beams)
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            num_beams=num_beams,
+            interpolate_pos_encoding=needs_pos_interpolation(processor, model),
+        )
     return processor.decode(output_ids[0], skip_special_tokens=True)
 
 
