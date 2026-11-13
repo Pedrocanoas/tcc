@@ -17,6 +17,7 @@ import re
 import unicodedata
 from collections import Counter
 from difflib import SequenceMatcher
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -115,6 +116,7 @@ def _negated_spans(text: str) -> list[tuple[int, int]]:
     return spans
 
 
+@lru_cache(maxsize=None)
 def extract_attributes(text: str) -> dict:
     """Atributos do livro descritos no texto. Binários: True/False. Categóricos
     ("capa", "estado"): o valor, ou None se o texto não menciona."""
