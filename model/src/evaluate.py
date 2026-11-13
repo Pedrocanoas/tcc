@@ -8,6 +8,7 @@ Uso:
 
 import argparse
 import json
+import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -31,8 +32,17 @@ def load_examples(manifest_path: Path) -> list[dict]:
     return deduped
 
 
+def _normalize(text: str) -> str:
+    # o tokenizador do BLIP (bert-base-uncased) remove acentos, então o modelo nunca
+    # gera "anotações", só "anotacoes" — comparar sem acento nos dois lados
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
+
+
 def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+    # autojunk=False: com o padrão (True), se `b` tiver >=200 caracteres, todo caractere
+    # que aparece em >1% das posições vira "lixo" — em texto normal isso pega quase todas
+    # as letras e derruba a similaridade pra perto de 0 (ver model/README.md)
+    return SequenceMatcher(None, _normalize(a), _normalize(b), autojunk=False).ratio()
 
 
 def parse_args() -> argparse.Namespace:
