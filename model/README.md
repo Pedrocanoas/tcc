@@ -36,9 +36,11 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > real do modelo com variação de estilo do rotulador humano, e não dá pra
 > ler "0.34" como "34% de acerto". As **comparações relativas** (com vs.
 > sem fine-tuning, com vs. sem coleções no treino) continuam válidas, porque
-> o mesmo ruído de estilo afeta os dois lados igualmente. Métricas
-> semânticas (BERTScore, embedding de sentença, LLM como juiz) mediriam
-> isso melhor, mas não foram implementadas — ver "Próximos passos".
+> o mesmo ruído de estilo afeta os dois lados igualmente. Desde
+> 2026-11-13, `src/metrics.py` reporta junto duas medidas que não dependem
+> da ordem: **F1 de palavras** e **acerto por atributo** (ver "Comparação
+> justa" abaixo). Métricas semânticas (BERTScore, embedding de sentença,
+> LLM como juiz) mediriam sinônimos também, mas não foram implementadas.
 >
 > **Bug na métrica, corrigido em 2026-11-12:** além da limitação acima,
 > `similarity()` tinha dois problemas de implementação, achados olhando por
@@ -173,8 +175,8 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > limite de 15 (por isso 0.34 e não 0.33). Consequência visível: treinado
 > com 13 livros ainda com `"REC. AP/ ..."` no início, ele ainda gera esse
 > prefixo às vezes (2 das 192 legendas da validação, ex.: `"rec. ap - 301d
-> - sx - brochura, ..."`). Falta retreinar a configuração de produção (384,
-> encoder congelado) com os dados atuais — ver "Próximos passos".
+> - sx - brochura, ..."`). Retreinado com os dados atuais e promovido em
+> 2026-11-13 — ver "Comparação justa" abaixo.
 >
 > **Resolução de entrada 576×576 tentada, sem ganho (2026-11-12):** o
 > BLIP base foi pré-treinado em 384×384 (patches de 16 px, 577 tokens de
@@ -198,6 +200,86 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > Conclusão: com o encoder congelado, subir a resolução não ajuda. Custo
 > medido na CPU: o encoder fica 2,75× mais lento por foto (1,1 s → 3,0 s).
 > Não promovido.
+>
+> **Comparação justa entre BLIP e BLIP-2 (2026-11-13) — base da escolha do
+> modelo de produção.** Todos os modelos abaixo foram treinados com **a
+> mesma base** (código do vendedor removido com o limite de 15
+> caracteres, ID final removido, coleções fora do treino via
+> `--exclude-colecoes`) e avaliados nos **mesmos 192 livros** de
+> validação, com **as mesmas três métricas** de `src/metrics.py`:
+> - **Similaridade** — `SequenceMatcher` corrigido (sem `autojunk`, sem
+>   acento). Sensível à ordem das frases.
+> - **F1 de palavras** — ignora a ordem. Mesmas frases em outra ordem dão
+>   1,00 (a similaridade dá 0,59).
+> - **Atributos** — fatos extraídos por regra dos dois textos e comparados
+>   um a um: tipo de capa, estado geral e presença de anotações/grifos,
+>   carimbo, assinatura/dedicatória, etiqueta, amarelado, manchas,
+>   sujidade, desgaste, dobras e rasgo. Trata negação ("sem X", "sem X ou
+>   Y", "não se nota", e "sem outras anotações" como presença). Média de
+>   F1 nos binários e **acerto balanceado** (média por categoria) em capa e
+>   estado — no acerto simples, responder sempre "brochura" já dava 0,89.
+>
+> | modelo | similaridade | F1 de palavras | atributos | legendas distintas (de 192) |
+> |---|---|---|---|---|
+> | BLIP base (sem fine-tuning) | 0,16 | 0,01 | 0,00 | — |
+> | **BLIP 384, encoder congelado** (produção desde 2026-11-13) | 0,49 | 0,46 | **0,32** | 93 |
+> | BLIP 576, encoder congelado | 0,46 | 0,41 | 0,31 | 86 |
+> | BLIP 384 + 2 camadas do encoder destravadas | 0,49 | 0,44 | 0,29 | 80 |
+> | BLIP 576 + 2 camadas do encoder destravadas | 0,46 | 0,44 | 0,29 | 59 |
+> | **BLIP-2 (OPT-2.7b), Q-Former + LoRA** | **0,51** | **0,47** | 0,29 | 100 |
+> | (produção anterior, base com limite de 10) | 0,48 | 0,44 | 0,26 | 97 |
+>
+> Diferença de cada um contra o BLIP 384 congelado, livro a livro, com
+> intervalo de confiança de 95% (bootstrap pareado, 1.000 reamostragens):
+>
+> | modelo | similaridade | F1 de palavras | atributos |
+> |---|---|---|---|
+> | 576 congelado | −0,027 [−0,050, −0,004] | −0,049 [−0,075, −0,022] | −0,010 [−0,063, +0,048] |
+> | 384 + 2 camadas | −0,003 [−0,020, +0,015] | −0,015 [−0,032, +0,004] | −0,031 [−0,073, +0,019] |
+> | 576 + 2 camadas | −0,026 [−0,045, −0,008] | −0,018 [−0,037, +0,000] | −0,029 [−0,082, +0,031] |
+> | BLIP-2 | +0,020 [+0,002, +0,037] | +0,010 [−0,009, +0,030] | −0,030 [−0,083, +0,026] |
+> | produção anterior | −0,007 [−0,028, +0,013] | −0,018 [−0,041, +0,003] | −0,061 [−0,105, −0,009] |
+>
+> Conclusões:
+> - **Resolução 576 não ajuda**: congelado perde no texto (intervalos
+>   abaixo de zero), destravado perde na similaridade e empata no resto.
+> - **Destravar 2 camadas do encoder** (lr 1e-5, 5× menor que o decoder)
+>   não colapsa como o encoder inteiro em setembro, mas também não ganha, e
+>   deixa o modelo mais repetitivo (59 legendas distintas no 576, uma delas
+>   44 vezes). Com 576 + 2 camadas, batch 8 não coube na T4 (CUDA out of
+>   memory): rodou com batch 4 e `--grad-accum 2`.
+> - **BLIP-2** fica praticamente empatado: um pouco melhor na similaridade
+>   (intervalo quase encostando no zero), empate em F1 e atributos. Escreve
+>   com acento e é o melhor em capa dura (acerto 0,55 vs. 0,45), mas é mais
+>   genérico (uma legenda repetida 37 vezes) e mais curto que as
+>   referências (150 vs. 222 caracteres). Tem ~3,75 bilhões de parâmetros
+>   (vs. ~250 milhões do BLIP), treina ~7,5 min por epoch na T4 e não roda
+>   na máquina local. Com 10 epochs a perda de validação ainda caía (0,887
+>   na última), então mais treino talvez ajude um pouco. Implementado em
+>   `src/blip2_experiment.py` (treino e avaliação no Kaggle).
+> - **A limpeza da base ajudou nos fatos**: contra a produção anterior, o
+>   384 novo sobe nos atributos (0,26 → 0,32, intervalo acima de zero),
+>   reconhece 9 das 20 capas duras (vs. 3) e deixou de gerar `"rec. ap"`.
+>   No texto é empate. Como `train.py` não fixa a semente do treino (só a
+>   do split), parte dessa diferença pode ser variação entre execuções.
+> - Todos os BLIP atingem a menor perda de validação na 3ª–4ª epoch e
+>   depois só decoram o treino.
+>
+> **Escolha:** BLIP 384 com encoder congelado — empata com todas as
+> variações e com um modelo 15× maior, e é o único que roda localmente.
+> Promovido a `checkpoints/best/` em 2026-11-13 (anterior preservado em
+> `checkpoints/best_backup_v1_short_code_fix/`).
+>
+> Detalhes de execução: o 384 congelado e o 576 destravado foram
+> avaliados na GPU do Kaggle; os demais BLIP, na CPU local. O 384
+> congelado foi avaliado nos dois ambientes e gerou **as mesmas 192
+> legendas**, então o ambiente não muda o resultado. Dois problemas no
+> script do BLIP-2 corrigidos antes do resultado acima: o Kaggle traz `torchao` 0.10
+> e o `peft` recusa versões abaixo da 0.16 (o notebook desinstala); e o
+> OPT vem configurado pra parar de gerar no `\n`, enquanto o treino ensina
+> a terminar com `</s>` — sem passar o EOS na chamada do `generate`, 161
+> das 192 legendas iam até o limite de 128 tokens repetindo frases
+> (similaridade 0,37).
 >
 > **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
 > (73 de 1.918) têm legenda bem mais longa que a média (>408 caracteres,
@@ -462,16 +544,17 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- **Retreinar a configuração de produção (384, encoder congelado) com os
-  dados atuais** — o retreino com o limite de 15 caracteres nunca rodou
-  (ver correção acima). Além de corrigir o `"rec. ap"` que o modelo ainda
-  gera, é a linha de base certa pra comparar os experimentos de 576 e de
-  encoder parcialmente destravado, que já usam os dados atuais.
-- Resolução maior só deve valer a pena junto com o encoder ajustado
-  gradualmente (ex.: destravar só as últimas camadas com LR menor), já que
-  576 com o encoder congelado empatou (ver nota acima) — e o teto é baixo,
-  porque as fotos do dataset têm só 600×800. Fotos de perto dos defeitos
-  (já em 384) são a alternativa mais barata pra mostrar detalhe.
+- Fixar a semente do treino em `train.py` (hoje só o split é fixo) e
+  repetir cada configuração com 3 sementes — com 192 livros de validação,
+  as diferenças medidas entre modelos (0,01–0,03) ficam no mesmo tamanho
+  da variação esperada entre execuções.
+- Fotos de perto dos defeitos (já em 384) — resolução maior não ajudou e o
+  teto é baixo, porque as fotos do dataset têm só 600×800.
+- Juntar as features de várias fotos do mesmo livro na atenção do decoder
+  (em vez de uma legenda por foto) — o modelo veria o livro inteiro de uma
+  vez.
+- BLIP-2 com mais epochs (a perda de validação ainda caía na 10ª) — só se
+  houver como servir um modelo de ~3,75 bilhões de parâmetros.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.
@@ -484,9 +567,7 @@ o download do checkpoint continua manual (passo 4 acima).
   "Limitação conhecida" acima) continua em aberto; a causa raiz mais
   provável ainda é o encoder congelado, mas destravá-lo precisa de uma
   configuração mais cuidadosa do que a tentada até agora.
-- Trocar/complementar `difflib.SequenceMatcher` por uma métrica semântica
-  (BERTScore, similaridade de embedding de sentença, ou um LLM como juiz)
-  em `src/evaluate.py` — a métrica atual penaliza variação de estilo do
-  rotulador humano tanto quanto erro real do modelo (ver "Limitação da
-  métrica de avaliação" acima), então os valores absolutos reportados são
-  pessimistas mesmo quando as comparações relativas são válidas.
+- Complementar as métricas com uma semântica (BERTScore, similaridade de
+  embedding de sentença, ou um LLM como juiz) — F1 de palavras e atributos
+  já não dependem da ordem, mas nenhuma das três entende sinônimo
+  ("amarelado" vs. "amarelecido").
