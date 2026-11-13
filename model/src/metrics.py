@@ -196,7 +196,8 @@ def main() -> None:
     args = parser.parse_args()
     for path in args.logs:
         print(f"\n##### {path.name}")
-        print(summary(list(read_log(path).values())))
+        pairs = list(read_log(path).values())
+        print(summary(pairs) if pairs else "nenhuma legenda avaliada neste log")
 
 
 if __name__ == "__main__":

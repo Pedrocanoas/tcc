@@ -17,7 +17,9 @@ import json
 import time
 from pathlib import Path
 
+import peft
 import torch
+import transformers
 from peft import LoraConfig, get_peft_model
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
@@ -130,6 +132,7 @@ def main() -> None:
     device = torch.device(args.device)
     use_amp = device.type == "cuda"
 
+    print(f"versões: torch={torch.__version__} transformers={transformers.__version__} peft={peft.__version__}", flush=True)
     processor = Blip2Processor.from_pretrained(args.model)
     model = Blip2ForConditionalGeneration.from_pretrained(
         args.model, torch_dtype=torch.float16 if use_amp else torch.float32
