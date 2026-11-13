@@ -104,14 +104,23 @@ def generate_caption(processor, model, image_path: Path, device, use_amp, max_ne
     image = Image.open(image_path).convert("RGB")
     inputs = processor(images=image, return_tensors="pt").to(device)
     with torch.no_grad(), torch.autocast(device.type, dtype=torch.float16, enabled=use_amp):
-        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, num_beams=num_beams)
+        # o BLIP-2 com OPT vem configurado pra parar no "\n" (id 50118), mas o treino ensina a
+        # terminar com o EOS do tokenizador (</s>) — sem isto a geração passa do fim e repete
+        # frases até o limite de tokens. Precisa ir na chamada: o generate repassa pro modelo
+        # de linguagem interno, que ignora model.generation_config
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            num_beams=num_beams,
+            eos_token_id=processor.tokenizer.eos_token_id,
+        )
     return processor.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=BLIP2_MODEL)
-    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--grad-accum", type=int, default=2, help="batch efetivo = batch-size × grad-accum")
     parser.add_argument("--lr", type=float, default=1e-4, help="learning rate dos adaptadores LoRA")
