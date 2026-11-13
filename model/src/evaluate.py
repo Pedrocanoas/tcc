@@ -8,15 +8,13 @@ Uso:
 
 import argparse
 import json
-import unicodedata
-from difflib import SequenceMatcher
 from pathlib import Path
 
 import torch
-from PIL import Image
 
 from src.config import BASE_MODEL, CHECKPOINTS_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, VAL_MANIFEST
 from src.infer import generate_caption, load_model
+from src.metrics import similarity, summary
 
 
 def load_examples(manifest_path: Path) -> list[dict]:
@@ -30,19 +28,6 @@ def load_examples(manifest_path: Path) -> list[dict]:
         seen_books.add(ex["livro_id"])
         deduped.append(ex)
     return deduped
-
-
-def _normalize(text: str) -> str:
-    # o tokenizador do BLIP (bert-base-uncased) remove acentos, então o modelo nunca
-    # gera "anotações", só "anotacoes" — comparar sem acento nos dois lados
-    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
-
-
-def similarity(a: str, b: str) -> float:
-    # autojunk=False: com o padrão (True), se `b` tiver >=200 caracteres, todo caractere
-    # que aparece em >1% das posições vira "lixo" — em texto normal isso pega quase todas
-    # as letras e derruba a similaridade pra perto de 0 (ver model/README.md)
-    return SequenceMatcher(None, _normalize(a), _normalize(b), autojunk=False).ratio()
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,19 +61,18 @@ def main() -> None:
     if args.limit:
         examples = examples[: args.limit]
 
-    scores = []
+    pairs = []
     for ex in examples:
         image_path = DATASET_RAW_DIR / ex["image"]
         predicted = generate_caption(processor, model, image_path, device)
-        score = similarity(predicted, ex["caption"])
-        scores.append(score)
+        pairs.append((predicted, ex["caption"]))
 
-        print(f"\n=== {ex['livro_id']} (similaridade: {score:.2f}) ===")
+        print(f"\n=== {ex['livro_id']} (similaridade: {similarity(predicted, ex['caption']):.2f}) ===")
         print(f"esperado : {ex['caption']}")
         print(f"gerado   : {predicted}")
 
-    if scores:
-        print(f"\n== média de similaridade em {len(scores)} livros ({args.split}): {sum(scores) / len(scores):.2f} ==")
+    if pairs:
+        print("\n" + summary(pairs, args.split))
 
 
 if __name__ == "__main__":

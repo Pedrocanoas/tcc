@@ -24,7 +24,8 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import Blip2ForConditionalGeneration, Blip2Processor
 
 from src.config import CHECKPOINTS_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, VAL_MANIFEST
-from src.evaluate import load_examples, similarity
+from src.evaluate import load_examples
+from src.metrics import similarity, summary
 
 BLIP2_MODEL = "Salesforce/blip2-opt-2.7b"
 
@@ -191,18 +192,17 @@ def main() -> None:
     examples = load_examples(VAL_MANIFEST)
     if args.limit_eval:
         examples = examples[: args.limit_eval]
-    scores = []
+    pairs = []
     for ex in examples:
         predicted = generate_caption(
             processor, model, DATASET_RAW_DIR / ex["image"], device, use_amp, args.max_length, args.num_beams
         )
-        score = similarity(predicted, ex["caption"])
-        scores.append(score)
-        print(f"\n=== {ex['livro_id']} (similaridade: {score:.2f}) ===", flush=True)
+        pairs.append((predicted, ex["caption"]))
+        print(f"\n=== {ex['livro_id']} (similaridade: {similarity(predicted, ex['caption']):.2f}) ===", flush=True)
         print(f"esperado : {ex['caption']}")
         print(f"gerado   : {predicted}", flush=True)
-    if scores:
-        print(f"\n== média de similaridade em {len(scores)} livros (val): {sum(scores) / len(scores):.2f} ==", flush=True)
+    if pairs:
+        print("\n" + summary(pairs), flush=True)
 
 
 if __name__ == "__main__":
