@@ -61,6 +61,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="resolução de entrada (quadrada); padrão = 384 do BLIP base. Ex.: 576 (ver model/README.md)",
     )
+    parser.add_argument(
+        "--grad-accum",
+        type=int,
+        default=1,
+        help="acumula o gradiente de N lotes antes de atualizar (batch efetivo = batch-size × N), pra caber na GPU",
+    )
     parser.add_argument("--limit-train", type=int, default=None, help="usa só os N primeiros exemplos (debug)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--output-dir", type=Path, default=CHECKPOINTS_DIR)
@@ -123,9 +129,10 @@ def main() -> None:
             outputs = model(**batch, interpolate_pos_encoding=interpolate)
             loss = outputs.loss
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            (loss / args.grad_accum).backward()
+            if step % args.grad_accum == 0 or step == len(train_loader):
+                optimizer.step()
+                optimizer.zero_grad()
 
             running_loss += loss.item()
             print(f"epoch {epoch} step {step}/{len(train_loader)} loss {loss.item():.4f}")

@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-size", type=int, default=None)
     parser.add_argument("--unfreeze-vision-layers", type=int, default=0)
     parser.add_argument("--vision-lr", type=float, default=None)
+    parser.add_argument("--grad-accum", type=int, default=1)
     return parser.parse_args()
 
 
@@ -62,6 +63,8 @@ def main() -> None:
             sys.argv += ["--unfreeze-vision-layers", str(args.unfreeze_vision_layers)]
         if args.vision_lr is not None:
             sys.argv += ["--vision-lr", str(args.vision_lr)]
+        if args.grad_accum > 1:
+            sys.argv += ["--grad-accum", str(args.grad_accum)]
         train()
     finally:
         sys.argv = original_argv
