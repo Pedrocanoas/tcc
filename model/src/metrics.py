@@ -136,7 +136,7 @@ def extract_attributes(text: str) -> dict:
 
 def attribute_report(pairs: list[tuple[str, str]]) -> tuple[str, float]:
     """`pairs` = [(gerado, referência)]. Devolve a tabela por atributo e a média
-    (macro) das medidas — F1 nos binários, acerto nos categóricos."""
+    (macro) das medidas — F1 nos binários, acerto balanceado nos categóricos."""
     extracted = [(extract_attributes(predicted), extract_attributes(reference)) for predicted, reference in pairs]
     lines, scores = [], []
     lines.append(f"{'atributo':26s} {'ref. tem':>8s} {'precisão':>9s} {'recall':>7s} {'F1':>6s}")
@@ -149,12 +149,20 @@ def attribute_report(pairs: list[tuple[str, str]]) -> tuple[str, float]:
         f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
         scores.append(f1)
         lines.append(f"{name:26s} {tp + fn:8d} {precision:9.2f} {recall:7.2f} {f1:6.2f}")
-    lines.append(f"{'atributo':26s} {'ref. cita':>8s} {'acerto':>9s}")
+    # acerto balanceado (média do acerto em cada categoria): no acerto simples, responder
+    # sempre "brochura" já dá 0.89 — aqui dá 0.50, e sempre o mesmo estado dá 0.25
+    lines.append(f"{'atributo':26s} {'ref. cita':>8s} {'acerto':>9s} {'balanc.':>7s}  acerto por categoria")
     for name in ("capa", "estado"):
         mentioned = [(p[name], r[name]) for p, r in extracted if r[name] is not None]
         accuracy = sum(p == r for p, r in mentioned) / len(mentioned) if mentioned else 0.0
-        scores.append(accuracy)
-        lines.append(f"{name:26s} {len(mentioned):8d} {accuracy:9.2f}")
+        per_class = {
+            value: sum(p == r for p, r in mentioned if r == value) / count
+            for value, count in sorted(Counter(r for _, r in mentioned).items())
+        }
+        balanced = sum(per_class.values()) / len(per_class) if per_class else 0.0
+        scores.append(balanced)
+        detail = ", ".join(f"{value}={recall:.2f}" for value, recall in per_class.items())
+        lines.append(f"{name:26s} {len(mentioned):8d} {accuracy:9.2f} {balanced:7.2f}  {detail}")
     return "\n".join(lines), sum(scores) / len(scores)
 
 
