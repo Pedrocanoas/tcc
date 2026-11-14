@@ -26,10 +26,9 @@ for ax,(name,rows) in zip(axes,data.items()):
     ax.tick_params(axis='y',length=0); ax.tick_params(axis='x',length=0)
     ax.set_ylim(-0.6,len(cfg)-0.4)
 axes[0].set_yticks(ys); axes[0].set_yticklabels(cfg,fontsize=8.5,color=ink)
-fig.supxlabel('Diferença em relação ao BLIP de 384 pixels com o codificador congelado',fontsize=9,color=ink2,y=0.13)
 h=[Line2D([0],[0],color=C['pior'],lw=2,marker='o',ms=6,mfc=C['pior'],mec=C['pior'],label='Pior: intervalo todo abaixo de zero'),
    Line2D([0],[0],color=C['empate'],lw=2,marker='o',ms=6,mfc='white',mec=C['empate'],mew=1.6,label='Empate: intervalo inclui o zero'),
    Line2D([0],[0],color=C['melhor'],lw=2,marker='o',ms=6,mfc=C['melhor'],mec=C['melhor'],label='Melhor: intervalo todo acima de zero')]
 fig.legend(handles=h,loc='lower center',ncol=3,frameon=False,fontsize=7.8,bbox_to_anchor=(0.5,0.0),handlelength=1.8,columnspacing=1.2)
-fig.tight_layout(rect=(0,0.15,1,1),w_pad=1.6)
+fig.tight_layout(rect=(0,0.09,1,1),w_pad=1.6)
 fig.savefig('figura-intervalos.png',facecolor='white')
