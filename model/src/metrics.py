@@ -1,6 +1,8 @@
 """Métricas pra comparar a legenda gerada com a legenda de referência do vendedor.
 
-Três medidas complementares (ver model/README.md):
+Quatro medidas complementares (ver model/README.md):
+- `cider_d`: CIDEr-D — n-gramas de 1 a 4 palavras pesados por TF-IDF, então o que se
+  repete em muitas legendas vale pouco e o específico de cada livro vale muito.
 - `similarity`: similaridade de sequência de caracteres (SequenceMatcher) — sensível à
   ordem das frases e ao estilo de quem escreveu.
 - `word_f1`: F1 de palavras — ignora a ordem, mas não entende sinônimo.
@@ -13,6 +15,7 @@ Uso (recalcula tudo a partir de um log já gerado por src.evaluate, sem rodar o 
 """
 
 import argparse
+import math
 import re
 import unicodedata
 from collections import Counter
@@ -34,14 +37,56 @@ def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, normalize(a), normalize(b), autojunk=False).ratio()
 
 
+def words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", normalize(text))
+
+
 def word_f1(predicted: str, reference: str) -> float:
-    pred = Counter(re.findall(r"[a-z0-9]+", normalize(predicted)))
-    ref = Counter(re.findall(r"[a-z0-9]+", normalize(reference)))
+    pred = Counter(words(predicted))
+    ref = Counter(words(reference))
     common = sum((pred & ref).values())
     if not common:
         return 0.0
     precision, recall = common / sum(pred.values()), common / sum(ref.values())
     return 2 * precision * recall / (precision + recall)
+
+
+def cider_d(pairs: list[tuple[str, str]], n: int = 4, sigma: float = 6.0) -> list[float]:
+    """CIDEr-D (Vedantam, Zitnick e Parikh, 2015), uma nota por par (gerado, referência),
+    igual à do pycocoevalcap (a "CIDEr" do COCO). Cada n-grama de 1 a 4 palavras pesa
+    pelo TF-IDF: o IDF vem das referências do próprio conjunto avaliado, então o que se
+    repete em muitas legendas ("sem anotacoes sem grifos") quase não conta. Corta a
+    contagem do gerado na da referência e penaliza diferença de tamanho (gaussiana,
+    sigma=6 palavras). Com uma referência só por livro, os valores servem pra comparar
+    modelos avaliados no mesmo conjunto, não com outros trabalhos."""
+
+    def ngram_counts(tokens: list[str]) -> list[Counter]:
+        return [Counter(tuple(tokens[i : i + k]) for i in range(len(tokens) - k + 1)) for k in range(1, n + 1)]
+
+    hyps = [ngram_counts(words(p)) for p, _ in pairs]
+    refs = [ngram_counts(words(r)) for _, r in pairs]
+    lengths = [(len(words(p)), len(words(r))) for p, r in pairs]
+    document_frequency = Counter(gram for ref in refs for counts in ref for gram in counts)
+    log_n_refs = math.log(float(len(pairs)))
+
+    def tfidf(counts: list[Counter]) -> tuple[list[dict], list[float]]:
+        vectors, norms = [], []
+        for counts_k in counts:
+            vector = {g: tf * (log_n_refs - math.log(max(1.0, document_frequency[g]))) for g, tf in counts_k.items()}
+            vectors.append(vector)
+            norms.append(math.sqrt(sum(v * v for v in vector.values())))
+        return vectors, norms
+
+    scores = []
+    for hyp, ref, (hyp_len, ref_len) in zip(hyps, refs, lengths):
+        (vec_h, norm_h), (vec_r, norm_r) = tfidf(hyp), tfidf(ref)
+        penalty = math.exp(-((hyp_len - ref_len) ** 2) / (2 * sigma**2))
+        per_n = []
+        for k in range(n):
+            dot = sum(min(v, vec_r[k].get(g, 0.0)) * vec_r[k].get(g, 0.0) for g, v in vec_h[k].items())
+            per_n.append(dot / (norm_h[k] * norm_r[k]) * penalty if norm_h[k] and norm_r[k] else 0.0)
+        scores.append(sum(per_n) / n * 10.0)
+    return scores
 
 
 # Atributos binários: "o texto diz que o livro TEM isso?". Menção negada ("sem grifos")
@@ -174,6 +219,7 @@ def summary(pairs: list[tuple[str, str]], split: str = "val") -> str:
     return (
         f"{table}\n"
         f"== média de acerto por atributo em {n} livros ({split}): {attribute_mean:.2f} ==\n"
+        f"== média de CIDEr-D em {n} livros ({split}): {sum(cider_d(pairs)) / n:.2f} ==\n"
         f"== média de F1 de palavras em {n} livros ({split}): {sum(word_f1(p, r) for p, r in pairs) / n:.2f} ==\n"
         f"== média de similaridade em {n} livros ({split}): {sum(similarity(p, r) for p, r in pairs) / n:.2f} =="
     )
@@ -192,14 +238,41 @@ def read_log(path: Path) -> dict[str, tuple[str, str]]:
     return {m.group(1): (m.group(3), m.group(2)) for m in LOG_ENTRY_RE.finditer(text.replace("\r\n", "\n"))}
 
 
+def rewrite_summary(path: Path) -> str:
+    """Troca o resumo no fim de um log de src.evaluate pelo calculado com as métricas
+    atuais (as legendas por livro ficam intactas). Devolve o resumo novo."""
+    raw = Path(path).read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("cp1252")
+    text = text.replace("\r\n", "\n")
+    entries = list(LOG_ENTRY_RE.finditer(text))
+    split_match = re.search(r"em \d+ livros \((\w+)\)", text[entries[-1].end() :])
+    split = split_match.group(1) if split_match else "val"
+    new_summary = summary([(m.group(3), m.group(2)) for m in entries], split)
+    Path(path).write_text(text[: entries[-1].end()] + "\n\n" + new_summary + "\n", encoding="utf-8")
+    return new_summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("logs", nargs="+", type=Path)
+    parser.add_argument(
+        "--reescrever",
+        action="store_true",
+        help="substitui o resumo no fim de cada log pelo das métricas atuais (ex.: acrescentar a CIDEr-D)",
+    )
     args = parser.parse_args()
     for path in args.logs:
         print(f"\n##### {path.name}")
         pairs = list(read_log(path).values())
-        print(summary(pairs) if pairs else "nenhuma legenda avaliada neste log")
+        if not pairs:
+            print("nenhuma legenda avaliada neste log")
+        elif args.reescrever:
+            print(rewrite_summary(path))
+        else:
+            print(summary(pairs))
 
 
 if __name__ == "__main__":
