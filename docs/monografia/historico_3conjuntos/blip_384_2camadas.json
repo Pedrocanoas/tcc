@@ -1,0 +1,62 @@
+{
+  "config": {
+    "epochs": "20",
+    "batch_size": "8",
+    "lr": "5e-05",
+    "max_length": "128",
+    "freeze_vision": "True",
+    "unfreeze_vision_layers": "2",
+    "vision_lr": "1e-05",
+    "image_size": "None",
+    "grad_accum": "1",
+    "patience": "3",
+    "seed": "42",
+    "limit_train": "None",
+    "device": "cuda",
+    "output_dir": "/kaggle/working/ckpt_blip_384_2camadas"
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 2.068523617642881,
+      "val_loss": 1.6677831191461063,
+      "seconds": 461.0,
+      "best": true
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.0836442537901634,
+      "val_loss": 1.379220988372383,
+      "seconds": 460.0,
+      "best": true
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.7017974982623159,
+      "val_loss": 1.2797361897804975,
+      "seconds": 459.7,
+      "best": true
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.4443683784038151,
+      "val_loss": 1.2861978660509423,
+      "seconds": 459.9,
+      "best": false
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.269306920388115,
+      "val_loss": 1.3404645792488914,
+      "seconds": 460.7,
+      "best": false
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.16806255810850365,
+      "val_loss": 1.3328077679313117,
+      "seconds": 460.5,
+      "best": false
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "config": {
+    "model": "Salesforce/blip2-opt-2.7b",
+    "epochs": "20",
+    "patience": "3",
+    "seed": "42",
+    "batch_size": "4",
+    "grad_accum": "2",
+    "lr": "0.0001",
+    "qformer_lr": "2e-05",
+    "lora_r": "16",
+    "max_length": "128",
+    "num_beams": "4",
+    "num_workers": "2",
+    "limit_train": "None",
+    "limit_eval": "None",
+    "device": "cuda",
+    "output_dir": "/kaggle/working/results/blip2_opt27b"
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 1.5303340983982818,
+      "val_loss": 1.246100502878331,
+      "seconds": 422.5,
+      "best": true
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.0649922930629205,
+      "val_loss": 1.1004534273085858,
+      "seconds": 425.4,
+      "best": true
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.9318995141014289,
+      "val_loss": 1.026866256997809,
+      "seconds": 425.9,
+      "best": true
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.8413815030395043,
+      "val_loss": 0.984150153919331,
+      "seconds": 422.6,
+      "best": true
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.774246847225904,
+      "val_loss": 0.9632962922833884,
+      "seconds": 425.2,
+      "best": true
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.7159898149240636,
+      "val_loss": 0.9426278088085088,
+      "seconds": 426.4,
+      "best": true
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.6633884089122238,
+      "val_loss": 0.9389560937302784,
+      "seconds": 424.3,
+      "best": true
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.6141042694550336,
+      "val_loss": 0.9285433663230112,
+      "seconds": 425.2,
+      "best": true
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.5626751467148283,
+      "val_loss": 0.9221070448123522,
+      "seconds": 426.0,
+      "best": true
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.5156430722762984,
+      "val_loss": 0.9307547512081449,
+      "seconds": 424.9,
+      "best": false
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.46831947703662896,
+      "val_loss": 0.9114272894886319,
+      "seconds": 423.7,
+      "best": true
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.42774174163626766,
+      "val_loss": 0.927691084631149,
+      "seconds": 424.0,
+      "best": false
+    },
+    {
+      "epoch": 13,
+      "train_loss": 0.38638522923665447,
+      "val_loss": 0.9463673536590388,
+      "seconds": 423.8,
+      "best": false
+    },
+    {
+      "epoch": 14,
+      "train_loss": 0.3478631454585099,
+      "val_loss": 0.9496127598252883,
+      "seconds": 423.8,
+      "best": false
+    }
+  ]
+}

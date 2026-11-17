@@ -1,0 +1,62 @@
+{
+  "config": {
+    "epochs": "20",
+    "batch_size": "8",
+    "lr": "5e-05",
+    "max_length": "128",
+    "freeze_vision": "True",
+    "unfreeze_vision_layers": "0",
+    "vision_lr": "None",
+    "image_size": "None",
+    "grad_accum": "1",
+    "patience": "3",
+    "seed": "42",
+    "limit_train": "None",
+    "device": "cuda",
+    "output_dir": "/kaggle/working/ckpt_blip_384_congelado"
+  },
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 2.0345954255937237,
+      "val_loss": 1.6111362998925367,
+      "seconds": 491.7,
+      "best": true
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.0326811408738368,
+      "val_loss": 1.369268773057314,
+      "seconds": 307.5,
+      "best": true
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.679501580524961,
+      "val_loss": 1.2815297591261878,
+      "seconds": 307.9,
+      "best": true
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.4306652704623632,
+      "val_loss": 1.2841211248755842,
+      "seconds": 308.2,
+      "best": false
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.26949065227048064,
+      "val_loss": 1.3393276906707912,
+      "seconds": 307.3,
+      "best": false
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.16890591307667618,
+      "val_loss": 1.3404104132868326,
+      "seconds": 308.4,
+      "best": false
+    }
+  ]
+}
