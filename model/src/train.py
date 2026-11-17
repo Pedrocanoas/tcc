@@ -9,11 +9,13 @@ Uso:
 """
 
 import argparse
+import json
+import time
 from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import BlipForConditionalGeneration, BlipProcessor
+from transformers import BlipForConditionalGeneration, BlipProcessor, set_seed
 
 from src.config import BASE_MODEL, CHECKPOINTS_DIR, TRAIN_MANIFEST, VAL_MANIFEST
 from src.dataset import BookConditionDataset
@@ -67,6 +69,13 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="acumula o gradiente de N lotes antes de atualizar (batch efetivo = batch-size × N), pra caber na GPU",
     )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=0,
+        help="para o treino depois de N epochs seguidas sem melhorar a perda de validação (0 = nunca para)",
+    )
+    parser.add_argument("--seed", type=int, default=42, help="semente do treino (ordem dos lotes, dropout)")
     parser.add_argument("--limit-train", type=int, default=None, help="usa só os N primeiros exemplos (debug)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--output-dir", type=Path, default=CHECKPOINTS_DIR)
@@ -76,6 +85,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     device = torch.device(args.device)
+    # fixa ordem dos lotes e dropout; na GPU ainda sobra uma variação pequena de kernels
+    # não determinísticos do cuDNN
+    set_seed(args.seed)
 
     processor = BlipProcessor.from_pretrained(BASE_MODEL)
     model = BlipForConditionalGeneration.from_pretrained(BASE_MODEL).to(device)
@@ -120,8 +132,11 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     best_val_loss = float("inf")
+    epochs_without_improvement = 0
+    history = {"config": {k: str(v) for k, v in vars(args).items()}, "epochs": []}
 
     for epoch in range(1, args.epochs + 1):
+        started = time.time()
         model.train()
         running_loss = 0.0
         for step, batch in enumerate(train_loader, start=1):
@@ -140,13 +155,30 @@ def main() -> None:
         val_loss = evaluate(model, val_loader, device, interpolate) if len(val_ds) else float("nan")
         train_loss = running_loss / max(len(train_loader), 1)
         print(f"== epoch {epoch}: train_loss={train_loss:.4f} val_loss={val_loss:.4f} ==")
+        improved = val_loss < best_val_loss
+        history["epochs"].append(
+            {
+                "epoch": epoch,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "seconds": round(time.time() - started, 1),
+                "best": improved,
+            }
+        )
+        (args.output_dir / "history.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
 
-        if val_loss < best_val_loss:
+        if improved:
             best_val_loss = val_loss
+            epochs_without_improvement = 0
             save_dir = args.output_dir / "best"
             model.save_pretrained(save_dir)
             processor.save_pretrained(save_dir)
             print(f"novo melhor checkpoint salvo em {save_dir}")
+        else:
+            epochs_without_improvement += 1
+            if args.patience and epochs_without_improvement >= args.patience:
+                print(f"parada antecipada: {args.patience} epochs sem melhorar a perda de validação")
+                break
 
     final_dir = args.output_dir / "last"
     model.save_pretrained(final_dir)

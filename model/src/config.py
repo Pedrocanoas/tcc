@@ -19,5 +19,6 @@ CHECKPOINTS_DIR = _env_path("TCC_CHECKPOINTS_DIR", MODEL_DIR / "checkpoints")
 
 TRAIN_MANIFEST = DATASET_PROCESSED_DIR / "train.jsonl"
 VAL_MANIFEST = DATASET_PROCESSED_DIR / "val.jsonl"
+TEST_MANIFEST = DATASET_PROCESSED_DIR / "test.jsonl"
 
 BASE_MODEL = "Salesforce/blip-image-captioning-base"

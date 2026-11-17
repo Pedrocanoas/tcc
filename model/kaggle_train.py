@@ -21,7 +21,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--freeze-vision", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--val-ratio", type=float, default=0.1)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--test-ratio", type=float, default=0.1)
+    parser.add_argument("--seed", type=int, default=42, help="semente do split e do treino")
+    parser.add_argument("--patience", type=int, default=0)
     parser.add_argument("--exclude-colecoes", action="store_true")
     parser.add_argument("--image-size", type=int, default=None)
     parser.add_argument("--unfreeze-vision-layers", type=int, default=0)
@@ -41,7 +43,15 @@ def main() -> None:
 
     original_argv = sys.argv
     try:
-        sys.argv = ["prepare_dataset", "--val-ratio", str(args.val_ratio), "--seed", str(args.seed)]
+        sys.argv = [
+            "prepare_dataset",
+            "--val-ratio",
+            str(args.val_ratio),
+            "--test-ratio",
+            str(args.test_ratio),
+            "--seed",
+            str(args.seed),
+        ]
         if args.exclude_colecoes:
             sys.argv.append("--exclude-colecoes")
         prepare_dataset()
@@ -56,6 +66,10 @@ def main() -> None:
             "--max-length",
             str(args.max_length),
             "--freeze-vision" if args.freeze_vision else "--no-freeze-vision",
+            "--seed",
+            str(args.seed),
+            "--patience",
+            str(args.patience),
         ]
         if args.image_size:
             sys.argv += ["--image-size", str(args.image_size)]

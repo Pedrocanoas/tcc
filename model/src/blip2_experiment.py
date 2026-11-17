@@ -1,5 +1,6 @@
 """Experimento: fine-tuning do BLIP-2 (OPT-2.7b) nos mesmos dados do BLIP e
-avaliação no mesmo split de validação, com a mesma métrica (src.evaluate).
+avaliação nos mesmos conjuntos de validação e teste, com as mesmas métricas
+(src.metrics). Grava eval_val.log e eval_test.log em --output-dir.
 
 Só roda de verdade em GPU (Kaggle): o modelo tem ~3,8 bilhões de parâmetros.
 O encoder de visão e o modelo de linguagem ficam congelados em fp16; treinam
@@ -9,7 +10,7 @@ português no estilo das legendas). Treino e avaliação ficam no mesmo script
 porque o checkpoint inteiro é grande demais pra baixar e rodar localmente.
 
 Uso:
-    python -m src.blip2_experiment --epochs 5 --batch-size 4
+    python -m src.blip2_experiment --epochs 20 --patience 3 --batch-size 4
 """
 
 import argparse
@@ -23,9 +24,9 @@ import transformers
 from peft import LoraConfig, get_peft_model
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
-from transformers import Blip2ForConditionalGeneration, Blip2Processor
+from transformers import Blip2ForConditionalGeneration, Blip2Processor, set_seed
 
-from src.config import CHECKPOINTS_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, VAL_MANIFEST
+from src.config import CHECKPOINTS_DIR, DATASET_RAW_DIR, TEST_MANIFEST, TRAIN_MANIFEST, VAL_MANIFEST
 from src.evaluate import load_examples
 from src.metrics import similarity, summary
 
@@ -120,7 +121,14 @@ def generate_caption(processor, model, image_path: Path, device, use_amp, max_ne
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=BLIP2_MODEL)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=3,
+        help="para depois de N epochs seguidas sem melhorar a perda de validação (0 = nunca para)",
+    )
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--grad-accum", type=int, default=2, help="batch efetivo = batch-size × grad-accum")
     parser.add_argument("--lr", type=float, default=1e-4, help="learning rate dos adaptadores LoRA")
@@ -140,6 +148,7 @@ def main() -> None:
     args = parse_args()
     device = torch.device(args.device)
     use_amp = device.type == "cuda"
+    set_seed(args.seed)
 
     print(f"versões: torch={torch.__version__} transformers={transformers.__version__} peft={peft.__version__}", flush=True)
     processor = Blip2Processor.from_pretrained(args.model)
@@ -185,6 +194,8 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     best_path = args.output_dir / "best_trainable.pt"
     best_val_loss = float("inf")
+    epochs_without_improvement = 0
+    history = {"config": {k: str(v) for k, v in vars(args).items()}, "epochs": []}
     for epoch in range(1, args.epochs + 1):
         started = time.time()
         train_loss = run_epoch(model, train_loader, device, use_amp, optimizer, scaler, args.grad_accum)
@@ -193,28 +204,49 @@ def main() -> None:
             f"== epoch {epoch}: train_loss={train_loss:.4f} val_loss={val_loss:.4f} ({time.time() - started:.0f}s) ==",
             flush=True,
         )
-        if val_loss < best_val_loss:
+        improved = val_loss < best_val_loss
+        history["epochs"].append(
+            {
+                "epoch": epoch,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "seconds": round(time.time() - started, 1),
+                "best": improved,
+            }
+        )
+        (args.output_dir / "history.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
+        if improved:
             best_val_loss = val_loss
+            epochs_without_improvement = 0
             torch.save(trainable_state(model), best_path)
             print(f"novo melhor checkpoint (só os pesos treináveis) salvo em {best_path}", flush=True)
+        else:
+            epochs_without_improvement += 1
+            if args.patience and epochs_without_improvement >= args.patience:
+                print(f"parada antecipada: {args.patience} epochs sem melhorar a perda de validação", flush=True)
+                break
 
     model.load_state_dict(torch.load(best_path), strict=False)
     model.eval()
 
-    examples = load_examples(VAL_MANIFEST)
-    if args.limit_eval:
-        examples = examples[: args.limit_eval]
-    pairs = []
-    for ex in examples:
-        predicted = generate_caption(
-            processor, model, DATASET_RAW_DIR / ex["image"], device, use_amp, args.max_length, args.num_beams
-        )
-        pairs.append((predicted, ex["caption"]))
-        print(f"\n=== {ex['livro_id']} (similaridade: {similarity(predicted, ex['caption']):.2f}) ===", flush=True)
-        print(f"esperado : {ex['caption']}")
-        print(f"gerado   : {predicted}", flush=True)
-    if pairs:
-        print("\n" + summary(pairs), flush=True)
+    # um log por conjunto, no mesmo formato do src.evaluate (src.metrics lê os dois)
+    for split, manifest in (("val", VAL_MANIFEST), ("test", TEST_MANIFEST)):
+        examples = load_examples(manifest)
+        if args.limit_eval:
+            examples = examples[: args.limit_eval]
+        pairs = []
+        with (args.output_dir / f"eval_{split}.log").open("w", encoding="utf-8") as log:
+            for ex in examples:
+                predicted = generate_caption(
+                    processor, model, DATASET_RAW_DIR / ex["image"], device, use_amp, args.max_length, args.num_beams
+                )
+                pairs.append((predicted, ex["caption"]))
+                log.write(f"\n=== {ex['livro_id']} (similaridade: {similarity(predicted, ex['caption']):.2f}) ===\n")
+                log.write(f"esperado : {ex['caption']}\ngerado   : {predicted}\n")
+            if pairs:
+                log.write("\n" + summary(pairs, split) + "\n")
+        if pairs:
+            print(f"\n##### {split}\n" + summary(pairs, split), flush=True)
 
 
 if __name__ == "__main__":

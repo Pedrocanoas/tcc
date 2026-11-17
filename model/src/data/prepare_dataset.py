@@ -20,7 +20,7 @@ import re
 import unicodedata
 from pathlib import Path
 
-from src.config import DATASET_PROCESSED_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, VAL_MANIFEST
+from src.config import DATASET_PROCESSED_DIR, DATASET_RAW_DIR, TEST_MANIFEST, TRAIN_MANIFEST, VAL_MANIFEST
 
 SELLER_DESC_HEADER = "Descricao do vendedor:"
 TRAILING_TAG_RE = re.compile(r"_[A-Za-z0-9]+_\.?\s*$")
@@ -185,18 +185,31 @@ def collect_examples(raw_dir: Path) -> list[dict]:
     return examples
 
 
-def split_by_book(examples: list[dict], val_ratio: float, seed: int) -> tuple[list[dict], list[dict]]:
+def split_by_book(
+    examples: list[dict], val_ratio: float, test_ratio: float, seed: int
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Validação = primeiros livros do sorteio, teste = os seguintes. A validação
+    fica idêntica à de antes de existir o conjunto de teste (mesmo seed, mesmo
+    val_ratio), então resultados antigos de validação continuam comparáveis; o
+    teste sai do que antes era treino."""
     book_ids = sorted({ex["livro_id"] for ex in examples})
     rng = random.Random(seed)
     rng.shuffle(book_ids)
 
     n_val = max(1, round(len(book_ids) * val_ratio))
+    n_test = round(len(book_ids) * test_ratio)
     val_books = set(book_ids[:n_val])
+    test_books = set(book_ids[n_val : n_val + n_test])
 
-    train, val = [], []
+    train, val, test = [], [], []
     for ex in examples:
-        (val if ex["livro_id"] in val_books else train).append(ex)
-    return train, val
+        if ex["livro_id"] in val_books:
+            val.append(ex)
+        elif ex["livro_id"] in test_books:
+            test.append(ex)
+        else:
+            train.append(ex)
+    return train, val, test
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -209,6 +222,12 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--val-ratio", type=float, default=0.1)
+    parser.add_argument(
+        "--test-ratio",
+        type=float,
+        default=0.1,
+        help="livros separados pra teste final, nunca usados pra escolher modelo nem epoch",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--exclude-colecoes",
@@ -229,16 +248,18 @@ def main() -> None:
     if not examples:
         raise SystemExit(f"Nenhum exemplo encontrado em {DATASET_RAW_DIR}")
 
-    train, val = split_by_book(examples, args.val_ratio, args.seed)
+    train, val, test = split_by_book(examples, args.val_ratio, args.test_ratio, args.seed)
     if args.exclude_colecoes:
         train = [ex for ex in train if not ex["colecao"]]
     write_jsonl(TRAIN_MANIFEST, train)
     write_jsonl(VAL_MANIFEST, val)
+    write_jsonl(TEST_MANIFEST, test)
 
     n_books = len({ex["livro_id"] for ex in examples})
     print(f"Livros: {n_books} | Exemplos (imagem, legenda): {len(examples)}")
-    print(f"Treino: {len(train)} exemplos -> {TRAIN_MANIFEST.relative_to(DATASET_PROCESSED_DIR.parent.parent)}")
-    print(f"Validação: {len(val)} exemplos -> {VAL_MANIFEST.relative_to(DATASET_PROCESSED_DIR.parent.parent)}")
+    for name, rows, path in (("Treino", train, TRAIN_MANIFEST), ("Validação", val, VAL_MANIFEST), ("Teste", test, TEST_MANIFEST)):
+        n = len({ex["livro_id"] for ex in rows})
+        print(f"{name}: {n} livros, {len(rows)} exemplos -> {path.relative_to(DATASET_PROCESSED_DIR.parent.parent)}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ do vendedor, para livros que o modelo não viu no treino (conjunto de validaçã
 
 Uso:
     .venv/Scripts/python.exe -m src.evaluate
+    .venv/Scripts/python.exe -m src.evaluate --split test
     .venv/Scripts/python.exe -m src.evaluate --split train --limit 5
 """
 
@@ -12,7 +13,9 @@ from pathlib import Path
 
 import torch
 
-from src.config import BASE_MODEL, CHECKPOINTS_DIR, DATASET_RAW_DIR, TRAIN_MANIFEST, VAL_MANIFEST
+from src.config import BASE_MODEL, CHECKPOINTS_DIR, DATASET_RAW_DIR, TEST_MANIFEST, TRAIN_MANIFEST, VAL_MANIFEST
+
+MANIFESTS = {"train": TRAIN_MANIFEST, "val": VAL_MANIFEST, "test": TEST_MANIFEST}
 from src.infer import generate_caption, load_model
 from src.metrics import similarity, summary
 
@@ -32,7 +35,7 @@ def load_examples(manifest_path: Path) -> list[dict]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--split", choices=["train", "val"], default="val")
+    parser.add_argument("--split", choices=list(MANIFESTS), default="val")
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINTS_DIR / "best")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -46,7 +49,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    manifest = VAL_MANIFEST if args.split == "val" else TRAIN_MANIFEST
+    manifest = MANIFESTS[args.split]
 
     checkpoint = args.checkpoint if args.checkpoint.exists() else BASE_MODEL
     if checkpoint == BASE_MODEL:
