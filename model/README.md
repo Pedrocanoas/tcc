@@ -202,7 +202,9 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > Não promovido.
 >
 > **Comparação justa entre BLIP e BLIP-2 (2026-11-13) — base da escolha do
-> modelo de produção.** Todos os modelos abaixo foram treinados com **a
+> modelo de produção.** *(Substituída pelos "Resultados finais" mais
+> abaixo, que repetem tudo com conjunto de teste separado, semente fixa e
+> parada antecipada; esta usou só a validação.)* Todos os modelos abaixo foram treinados com **a
 > mesma base** (código do vendedor removido com o limite de 15
 > caracteres, ID final removido, coleções fora do treino via
 > `--exclude-colecoes`) e avaliados nos **mesmos 192 livros** de
@@ -328,6 +330,116 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > pelo campo `"colecao"` do manifesto na hora de pontuar, sem afetar o
 > split.
 
+## Resultados finais (divisão 80/10/10, 2026-11-17)
+
+**Protocolo**, igual para todos os modelos:
+- **Divisão por livro** (`prepare_dataset --val-ratio 0.1 --test-ratio 0.1
+  --seed 42`): 1.918 livros e 2.962 pares imagem-legenda.
+
+  | conjunto | livros | pares | coleções |
+  |---|---|---|---|
+  | treino | 1.445 | 2.215 | 89 livros / 138 pares retirados |
+  | validação | 192 | 309 | 12 mantidas |
+  | teste | 192 | 300 | 10 mantidas |
+
+  A validação é a mesma dos experimentos anteriores; o teste saiu do que
+  era treino e **nunca foi usado para escolher modelo nem epoch**.
+- **Base limpa**: código do vendedor removido (limite de 15 caracteres), ID
+  final removido, coleções fora só do treino.
+- **Treino**: semente 42 (`--seed`, ordem dos lotes e dropout), no máximo
+  20 epochs com **parada antecipada** (`--patience 3`), melhor checkpoint
+  escolhido pela perda de validação. `history.json` guarda a perda por
+  epoch.
+- **GPU**: Tesla T4 (16 GB) no Kaggle, nas duas execuções (rodada A: BLIP
+  384 congelado, 384 + 2 camadas e BLIP-2; rodada B: 576 congelado, 576 + 2
+  camadas e BLIP sem fine-tuning). Avaliação na mesma GPU (a avaliação em
+  CPU gera as mesmas legendas, conferido no 384).
+- **Métricas** (`src/metrics.py`): similaridade (`SequenceMatcher`
+  corrigido), F1 de palavras, atributos (F1 nos binários, acerto balanceado
+  em capa e estado) e **CIDEr-D** (Vedantam, Zitnick e Parikh, 2015; mesma
+  fórmula do `pycocoevalcap`, conferida livro a livro). IC 95% por
+  bootstrap: 2.000 reamostragens dos livros, as mesmas para todos os
+  modelos. Na rodada A, a CIDEr-D foi recalculada a partir dos logs
+  (`src.metrics --reescrever`), sem mexer nas legendas geradas.
+
+**Teste (192 livros), média [IC 95%]:**
+
+| modelo | similaridade | F1 de palavras | atributos | CIDEr-D |
+|---|---|---|---|---|
+| BLIP sem fine-tuning | 0,16 [0,15; 0,17] | 0,02 [0,01; 0,02] | 0,00 | 0,00 |
+| BLIP 384, encoder congelado | 0,48 [0,45; 0,51] | 0,43 [0,40; 0,46] | 0,25 [0,21; 0,28] | 0,73 [0,52; 0,99] |
+| BLIP 384, 2 camadas destravadas | 0,48 [0,45; 0,51] | 0,43 [0,40; 0,46] | 0,24 [0,21; 0,27] | 0,76 [0,53; 1,04] |
+| BLIP 576, encoder congelado | 0,48 [0,45; 0,51] | 0,43 [0,40; 0,46] | 0,26 [0,23; 0,30] | 0,74 [0,51; 1,01] |
+| BLIP 576, 2 camadas destravadas | 0,48 [0,45; 0,50] | 0,43 [0,40; 0,46] | 0,27 [0,23; 0,30] | 0,63 [0,45; 0,85] |
+| **BLIP-2 (OPT-2.7b)** | **0,51** [0,48; 0,54] | **0,47** [0,43; 0,50] | 0,23 [0,21; 0,26] | **0,98** [0,72; 1,28] |
+
+Diferença contra o BLIP 384 congelado no teste (IC 95% pareado): nenhuma
+variação do BLIP exclui o zero em nenhuma métrica; o BLIP-2 fica acima em
+similaridade (+0,034 [+0,015; +0,056]), F1 (+0,039 [+0,017; +0,062]) e
+CIDEr-D (+0,25 [+0,02; +0,49]) e empata nos atributos (−0,011 [−0,043;
++0,023]).
+
+**Validação (192 livros), média:**
+
+| modelo | similaridade | F1 de palavras | atributos | CIDEr-D |
+|---|---|---|---|---|
+| BLIP sem fine-tuning | 0,16 | 0,01 | 0,00 | 0,00 |
+| BLIP 384, encoder congelado | 0,47 | 0,43 | 0,24 | 0,64 |
+| BLIP 384, 2 camadas destravadas | 0,48 | 0,42 | 0,25 | 0,62 |
+| BLIP 576, encoder congelado | 0,49 | 0,44 | 0,27 | 0,82 |
+| BLIP 576, 2 camadas destravadas | 0,49 | 0,45 | 0,26 | 0,81 |
+| BLIP-2 (OPT-2.7b) | 0,51 | 0,47 | 0,30 | 0,89 |
+
+**Treino** (`history.json`):
+
+| modelo | epochs treinadas | melhor epoch | menor perda de validação | horas de GPU |
+|---|---|---|---|---|
+| BLIP 384, encoder congelado | 6 | 3 | 1,282 | 0,56 |
+| BLIP 384, 2 camadas destravadas | 6 | 3 | 1,280 | 0,76 |
+| BLIP 576, encoder congelado | 7 | 4 | 1,322 | 1,03 |
+| BLIP 576, 2 camadas destravadas | 7 | 4 | 1,273 | 1,73 |
+| BLIP-2 (OPT-2.7b) | 14 | 11 | 0,911 | 1,65 |
+
+A perda do BLIP-2 não se compara à dos BLIP (tokenizadores diferentes).
+
+**Conclusões:**
+- O ganho que importa é o **fine-tuning**: similaridade de 0,16 (BLIP
+  original, que escreve em inglês) para ~0,48.
+- **As quatro variações do BLIP empatam no teste.** Resolução 576 e
+  encoder parcialmente destravado não trazem ganho. Na validação os 576
+  pareciam um pouco melhores (intervalos encostando no zero), mas isso não
+  se repetiu no teste — exemplo de por que o conjunto de teste separado
+  era necessário.
+- **O BLIP-2 é o único melhor que o BLIP 384** no texto e na CIDEr-D, com
+  ~15× mais parâmetros (~3,75 bilhões); não roda na máquina local.
+- Os BLIP atingem a menor perda de validação na 3ª–4ª epoch e depois só
+  decoram o treino; o BLIP-2 vai até a 11ª. Curvas completas de 20 epochs
+  (base de treino anterior) mostram a perda de validação subindo depois da
+  4ª epoch (384 congelado: 1,207 na 4ª, 1,611 na 20ª).
+- **Variação entre execuções é do tamanho das diferenças entre modelos**:
+  o mesmo BLIP 384 congelado, retreinado com outra semente e 11% menos
+  livros, foi de 0,49 para 0,47 de similaridade e de 0,32 para 0,24 nos
+  atributos na mesma validação.
+- O **desvio padrão da CIDEr-D por livro é maior que a média** (ex.: 1,66
+  para 0,73): a maioria dos livros tira perto de zero e alguns tiram notas
+  altas ao acertar um detalhe raro. Como cada livro tem uma só referência,
+  os valores servem para comparar os modelos entre si, não com outros
+  trabalhos.
+
+**Modelo em produção** (`checkpoints/best/`): continua o BLIP 384 congelado
+promovido em 2026-11-13, mesma configuração, treinado com mais livros
+(1.627, que incluem os do teste) — por isso ele **não é avaliado no
+teste**, só na validação (0,49 / 0,46 / 0,32 / CIDEr-D 0,85). Os números de
+teste acima são do checkpoint da rodada final.
+
+**Arquivos**: logs (`eval_val.log`, `eval_test.log`, `train.log`),
+`history.json` e `gpu.txt` de cada modelo, mais `tabela_final.md`/`.csv`
+(com desvio padrão e intervalos dos dois conjuntos), ficaram fora do
+repositório, em `C:\Users\Pedro\reps\resultados-tcc\`. Notebooks:
+`kaggle_notebook.ipynb` (rodadas A e B) e `colab_notebook.ipynb` (mesmo
+protocolo, um modelo por sessão, alternativa quando a fila do Kaggle
+trava).
+
 ## Setup
 
 ```sh
@@ -346,11 +458,13 @@ py -m venv .venv
 ## Uso
 
 ```sh
-# 1. gera dataset/processed/train.jsonl e val.jsonl a partir de dataset/raw/
-.venv/Scripts/python.exe -m src.data.prepare_dataset
+# 1. gera dataset/processed/train.jsonl, val.jsonl e test.jsonl a partir de dataset/raw/
+#    (80/10/10 por livro; --exclude-colecoes tira as coleções só do treino)
+.venv/Scripts/python.exe -m src.data.prepare_dataset --exclude-colecoes
 
-# 2. fine-tuning (salva em checkpoints/best e checkpoints/last, ambos gitignored)
-.venv/Scripts/python.exe -m src.train --epochs 5 --batch-size 4
+# 2. fine-tuning (salva em checkpoints/best e checkpoints/last, ambos gitignored,
+#    e checkpoints/history.json com a perda por epoch)
+.venv/Scripts/python.exe -m src.train --epochs 20 --patience 3 --seed 42 --batch-size 8
 
 # 3. inferência (usa checkpoints/best se existir, senão cai no modelo base)
 .venv/Scripts/python.exe -m src.infer caminho/para/foto1.jpg caminho/para/foto2.jpg
@@ -359,9 +473,15 @@ py -m venv .venv
 #     (evita o modelo ter que adivinhar esses dois atributos pela foto)
 .venv/Scripts/python.exe -m src.infer --capa dura --condicao seminovo foto1.jpg
 
-# 4. avaliação: compara gerado vs. legenda original do vendedor
-#    (--split val usa livros que o modelo nunca viu no treino)
+# 4. avaliação: compara gerado vs. legenda original do vendedor, com as quatro
+#    métricas de src/metrics.py (--split val escolhe modelo/epoch; --split test
+#    só para o número final)
 .venv/Scripts/python.exe -m src.evaluate --split val --limit 10
+.venv/Scripts/python.exe -m src.evaluate --split test
+
+# 5. recalcula as métricas de um log de avaliação sem rodar o modelo
+#    (--reescrever troca o resumo no fim do log pelo das métricas atuais)
+.venv/Scripts/python.exe -m src.metrics caminho/eval_test.log
 ```
 
 `train.py --limit-train N --epochs 1` é útil para testar rapidamente se o
@@ -544,17 +664,16 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
-- Fixar a semente do treino em `train.py` (hoje só o split é fixo) e
-  repetir cada configuração com 3 sementes — com 192 livros de validação,
-  as diferenças medidas entre modelos (0,01–0,03) ficam no mesmo tamanho
-  da variação esperada entre execuções.
+- Repetir cada configuração com 3 sementes (`--seed`) — com 192 livros por
+  conjunto, as diferenças entre modelos (0,01–0,03) ficam no mesmo tamanho
+  da variação entre execuções (ver "Resultados finais").
 - Fotos de perto dos defeitos (já em 384) — resolução maior não ajudou e o
   teto é baixo, porque as fotos do dataset têm só 600×800.
 - Juntar as features de várias fotos do mesmo livro na atenção do decoder
   (em vez de uma legenda por foto) — o modelo veria o livro inteiro de uma
   vez.
-- BLIP-2 com mais epochs (a perda de validação ainda caía na 10ª) — só se
-  houver como servir um modelo de ~3,75 bilhões de parâmetros.
+- Servir o BLIP-2 (o único melhor que o BLIP 384 no teste) exigiria uma
+  GPU no servidor — ~3,75 bilhões de parâmetros não rodam na máquina local.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.
@@ -568,6 +687,6 @@ o download do checkpoint continua manual (passo 4 acima).
   provável ainda é o encoder congelado, mas destravá-lo precisa de uma
   configuração mais cuidadosa do que a tentada até agora.
 - Complementar as métricas com uma semântica (BERTScore, similaridade de
-  embedding de sentença, ou um LLM como juiz) — F1 de palavras e atributos
-  já não dependem da ordem, mas nenhuma das três entende sinônimo
-  ("amarelado" vs. "amarelecido").
+  embedding de sentença, ou um LLM como juiz) — F1 de palavras, atributos e
+  CIDEr-D já não dependem da ordem das frases, mas nenhuma das quatro
+  entende sinônimo ("amarelado" vs. "amarelecido").
