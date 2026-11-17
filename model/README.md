@@ -23,6 +23,72 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > livros com condições bem diferentes — indício de que o encoder congelado
 > não está diferenciando as fotos o suficiente.
 >
+> **Limitação da métrica de avaliação:** `src/evaluate.py` usa
+> `difflib.SequenceMatcher` (similaridade de sequência de caracteres) entre
+> a legenda gerada e a legenda original do vendedor. Essa legenda original é
+> escrita por uma pessoa diferente a cada livro, com estilo próprio — ordem
+> das frases, escolha de palavras, nível de detalhe variam mesmo quando o
+> conteúdo descrito é o mesmo. `SequenceMatcher` não entende sinônimo nem
+> reordenação: duas frases com o mesmo significado mas estrutura diferente
+> pontuam baixo (ex.: só reordenar as mesmas frases de uma legenda de
+> exemplo já cai de 1.0 pra ~0.5). Então os valores absolutos reportados
+> aqui (0.34, 0.11 etc.) são um **piso pessimista** — a métrica mistura erro
+> real do modelo com variação de estilo do rotulador humano, e não dá pra
+> ler "0.34" como "34% de acerto". As **comparações relativas** (com vs.
+> sem fine-tuning, com vs. sem coleções no treino) continuam válidas, porque
+> o mesmo ruído de estilo afeta os dois lados igualmente. Desde
+> 2026-11-13, `src/metrics.py` reporta junto duas medidas que não dependem
+> da ordem: **F1 de palavras** e **acerto por atributo** (ver "Comparação
+> justa" abaixo). Métricas semânticas (BERTScore, embedding de sentença,
+> LLM como juiz) mediriam sinônimos também, mas não foram implementadas.
+>
+> **Bug na métrica, corrigido em 2026-11-12:** além da limitação acima,
+> `similarity()` tinha dois problemas de implementação, achados olhando por
+> que ~30% dos livros da validação tiravam menos de 0.10:
+> 1. **`autojunk`** — o padrão do `SequenceMatcher` é `autojunk=True`: se o
+>    segundo texto (a legenda de referência) tiver ≥200 caracteres, todo
+>    caractere que aparece em mais de 1% das posições é tratado como "lixo"
+>    e ignorado no casamento. Em texto normal isso pega quase todas as
+>    letras, e a similaridade despenca pra perto de 0 mesmo com legendas
+>    quase iguais (ex.: livro186 tirava **0.01** com uma legenda gerada que
+>    repete "com mínimos sinais de uso", "lindamente ilustrad-", "sem
+>    anotações, sem grifos, sem carimbos" da referência; corrigido, **0.48**).
+>    Quase metade da validação (94 de 192 livros) tem referência ≥200
+>    caracteres — nesses, a média ia de 0.41 (correta) pra 0.13.
+> 2. **Acentos** — o tokenizador do BLIP (`bert-base-uncased`) remove
+>    acentos, então o modelo nunca gera "anotações", só "anotacoes", e a
+>    referência tem acento. Efeito pequeno (~+0.01).
+>
+> Corrigido com `autojunk=False` e normalização de acento nos dois lados.
+> Reavaliando os mesmos logs de geração (sem rodar o modelo de novo), no
+> split de validação completo (192 livros):
+>
+> | modelo | métrica antiga | métrica corrigida |
+> |---|---|---|
+> | BLIP base (sem fine-tuning) | 0.11 | **0.16** |
+> | produção (384, encoder congelado) | 0.34 | **0.48** |
+> | 576, encoder congelado | 0.31 | **0.46** |
+>
+> A ordem entre os modelos não muda, mas os valores absolutos sim, e
+> **empates/diferenças pequenas medidos com a métrica antiga não são
+> confiáveis** (ver a nota do 576 abaixo, que mudou de "pior" pra
+> "empate"). Os números de experimentos antigos neste README (0.29, 0.32,
+> 0.33, 0.34, 0.44, 0.22) foram medidos com a métrica antiga e não dá pra
+> recalcular sem os logs de geração daquela época.
+>
+> **Reordenação de cláusulas por categoria tentada e descartada
+> (2026-11-03):** pra tentar neutralizar a variação de estilo acima,
+> foi implementada uma reordenação baseada em regra — cada cláusula da
+> legenda (separada por ";"/".") classificada por palavra-chave (material,
+> estado geral, capa/lombada, miolo/páginas, marcas) e reordenada numa
+> ordem fixa, sem reescrever nenhum texto. Testado em amostras reais antes
+> de treinar qualquer coisa: a reordenação quebra ligação lógica entre
+> frases adjacentes em uma fração relevante dos casos (ex.: separa "a
+> lombada está descolada" de "mas o miolo permanece firme", que eram uma
+> frase só), o que ensinaria o modelo a gerar frases mais desconectadas, não
+> menos. Descartado sem treinar — o risco de piorar a qualidade do texto
+> superou o ganho especulativo na métrica de similaridade.
+>
 > **`--no-freeze-vision` tentado e descartado (2026-09-26):** destravar o
 > encoder com os hiperparâmetros atuais (lr=5e-5 uniforme, 20 epochs,
 > ~2.653 exemplos) piora a situação em vez de ajudar — colapso de modo
@@ -71,6 +137,150 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > troca não mudou a métrica (era um empate, não uma melhora) — a correção
 > valeu pela qualidade do dado de treino, não por ganho de similaridade.
 >
+> **Vazamento de código curto sem dígito no início da legenda (corrigido em
+> 2026-11-03, promovido em 2026-11-09, limite de tamanho ajustado em
+> 2026-11-10):** investigando se havia duplicação de informação nas
+> legendas (motivado por uma pergunta sobre variação de estilo entre
+> vendedores), achado um terceiro vazamento de código interno — **7,6% dos
+> livros (146 de 1.918)** tinham uma abreviação curta (2-11 letras, ex.:
+> `"LB; Brochura..."`, `"REC. AP/ FI - Brochura..."`) sobrando no início da
+> legenda. Os dois fixes anteriores (`strip_leading_seller_code`) só
+> cortavam prefixo com dígito (código numérico) — esse tipo de código não
+> tem dígito nenhum, então passava direto. `strip_leading_seller_code`
+> ganhou um segundo critério: prefixo curto (≤15 caracteres — ajustado de
+> 10 pra 15 depois de achar casos como `"REC. AP/ FI"`, 11 caracteres, que
+> ainda escapavam) que não é uma palavra real conhecida (`REAL_SHORT_WORDS`)
+> também é cortado, mas só quando não tem STOPWORDS nem termo
+> bibliográfico (`BIBLIOGRAPHIC_MARKER_RE` — "edição", "volume", "série"
+> etc., pra não cortar informação real em cascata depois de remover o
+> código). Testado comparando as 1.918 legendas linha a linha contra a
+> versão anterior do código antes de promover, e de novo depois do ajuste
+> de limite — zero casos de texto real cortado indevidamente. Vazamento
+> caiu de 7,6% pra 0%. Retreinado e promovido a `model/checkpoints/best/`
+> em 2026-11-09 (checkpoint anterior preservado em
+> `checkpoints/best_backup_pre_short_code_fix/`); no split de validação
+> completo (192 livros), similaridade média ficou em **0.33** (vs. 0.34 do
+> checkpoint anterior) — outro empate dentro do ruído da métrica (ver nota
+> acima), valendo pela qualidade do dado.
+>
+> **Correção (2026-11-12): o retreino com o limite de 15 caracteres nunca
+> rodou.** O disparo pelo GitHub Action estava quebrado desde 2026-11-04
+> (o `kaggle` importa `six` sem declarar, e o `python-dateutil` 4.0 deixou
+> de trazê-lo junto — corrigido no workflow), e o `kaggle kernels output`
+> de 2026-11-10 baixou de novo a saída da execução anterior. O checkpoint
+> "promovido" em 2026-11-11 tem o **mesmo hash** de
+> `checkpoints/best_backup_v1_short_code_fix/`: **o checkpoint de produção
+> atual é o do limite de 10 caracteres** (2026-11-09). O 0.34 de 2026-11-11
+> é esse mesmo checkpoint, avaliado contra as referências já limpas com o
+> limite de 15 (por isso 0.34 e não 0.33). Consequência visível: treinado
+> com 13 livros ainda com `"REC. AP/ ..."` no início, ele ainda gera esse
+> prefixo às vezes (2 das 192 legendas da validação, ex.: `"rec. ap - 301d
+> - sx - brochura, ..."`). Retreinado com os dados atuais e promovido em
+> 2026-11-13 — ver "Comparação justa" abaixo.
+>
+> **Resolução de entrada 576×576 tentada, sem ganho (2026-11-12):** o
+> BLIP base foi pré-treinado em 384×384 (patches de 16 px, 577 tokens de
+> imagem). `--image-size 576` em `train.py` redimensiona as fotos pra
+> 576×576 e interpola a tabela de posições dos patches
+> (`interpolate_pos_encoding`, 1.297 tokens) — o tamanho fica salvo no
+> processor do checkpoint, e `infer.py` detecta sozinho. As fotos do
+> dataset têm 600×800 (algumas 527×800), então 576 já é praticamente o teto
+> de resolução útil; acima disso seria só ampliar a imagem. Treinado com
+> encoder congelado, `--exclude-colecoes` e 20 epochs, como o de produção —
+> mas com os dados atuais (limite de 15 caracteres), enquanto o de produção
+> usou os do limite de 10 (ver correção acima); diferença de 13 livros no
+> treino. No split de validação completo (192 livros): **0.46** vs.
+> **0.48** do de produção, pela métrica corrigida (0.31 vs. 0.34 pela
+> antiga). Livro a livro, diferença média −0.020 com intervalo de
+> confiança de 95% (bootstrap) de [−0.042, +0.003] — inclui zero, então é
+> **empate**, não piora (pela métrica antiga o intervalo era [−0.051,
+> −0.007] e parecia uma piora real — efeito do bug do `autojunk`). As
+> legendas geradas ficaram um pouco menos variadas (86 legendas distintas
+> em 192 livros, vs. 97 no 384; a mais repetida aparece 22 vezes, vs. 18).
+> Conclusão: com o encoder congelado, subir a resolução não ajuda. Custo
+> medido na CPU: o encoder fica 2,75× mais lento por foto (1,1 s → 3,0 s).
+> Não promovido.
+>
+> **Comparação justa entre BLIP e BLIP-2 (2026-11-13) — base da escolha do
+> modelo de produção.** Todos os modelos abaixo foram treinados com **a
+> mesma base** (código do vendedor removido com o limite de 15
+> caracteres, ID final removido, coleções fora do treino via
+> `--exclude-colecoes`) e avaliados nos **mesmos 192 livros** de
+> validação, com **as mesmas três métricas** de `src/metrics.py`:
+> - **Similaridade** — `SequenceMatcher` corrigido (sem `autojunk`, sem
+>   acento). Sensível à ordem das frases.
+> - **F1 de palavras** — ignora a ordem. Mesmas frases em outra ordem dão
+>   1,00 (a similaridade dá 0,59).
+> - **Atributos** — fatos extraídos por regra dos dois textos e comparados
+>   um a um: tipo de capa, estado geral e presença de anotações/grifos,
+>   carimbo, assinatura/dedicatória, etiqueta, amarelado, manchas,
+>   sujidade, desgaste, dobras e rasgo. Trata negação ("sem X", "sem X ou
+>   Y", "não se nota", e "sem outras anotações" como presença). Média de
+>   F1 nos binários e **acerto balanceado** (média por categoria) em capa e
+>   estado — no acerto simples, responder sempre "brochura" já dava 0,89.
+>
+> | modelo | similaridade | F1 de palavras | atributos | legendas distintas (de 192) |
+> |---|---|---|---|---|
+> | BLIP base (sem fine-tuning) | 0,16 | 0,01 | 0,00 | — |
+> | **BLIP 384, encoder congelado** (produção desde 2026-11-13) | 0,49 | 0,46 | **0,32** | 93 |
+> | BLIP 576, encoder congelado | 0,46 | 0,41 | 0,31 | 86 |
+> | BLIP 384 + 2 camadas do encoder destravadas | 0,49 | 0,44 | 0,29 | 80 |
+> | BLIP 576 + 2 camadas do encoder destravadas | 0,46 | 0,44 | 0,29 | 59 |
+> | **BLIP-2 (OPT-2.7b), Q-Former + LoRA** | **0,51** | **0,47** | 0,29 | 100 |
+> | (produção anterior, base com limite de 10) | 0,48 | 0,44 | 0,26 | 97 |
+>
+> Diferença de cada um contra o BLIP 384 congelado, livro a livro, com
+> intervalo de confiança de 95% (bootstrap pareado, 1.000 reamostragens):
+>
+> | modelo | similaridade | F1 de palavras | atributos |
+> |---|---|---|---|
+> | 576 congelado | −0,027 [−0,050, −0,004] | −0,049 [−0,075, −0,022] | −0,010 [−0,063, +0,048] |
+> | 384 + 2 camadas | −0,003 [−0,020, +0,015] | −0,015 [−0,032, +0,004] | −0,031 [−0,073, +0,019] |
+> | 576 + 2 camadas | −0,026 [−0,045, −0,008] | −0,018 [−0,037, +0,000] | −0,029 [−0,082, +0,031] |
+> | BLIP-2 | +0,020 [+0,002, +0,037] | +0,010 [−0,009, +0,030] | −0,030 [−0,083, +0,026] |
+> | produção anterior | −0,007 [−0,028, +0,013] | −0,018 [−0,041, +0,003] | −0,061 [−0,105, −0,009] |
+>
+> Conclusões:
+> - **Resolução 576 não ajuda**: congelado perde no texto (intervalos
+>   abaixo de zero), destravado perde na similaridade e empata no resto.
+> - **Destravar 2 camadas do encoder** (lr 1e-5, 5× menor que o decoder)
+>   não colapsa como o encoder inteiro em setembro, mas também não ganha, e
+>   deixa o modelo mais repetitivo (59 legendas distintas no 576, uma delas
+>   44 vezes). Com 576 + 2 camadas, batch 8 não coube na T4 (CUDA out of
+>   memory): rodou com batch 4 e `--grad-accum 2`.
+> - **BLIP-2** fica praticamente empatado: um pouco melhor na similaridade
+>   (intervalo quase encostando no zero), empate em F1 e atributos. Escreve
+>   com acento e é o melhor em capa dura (acerto 0,55 vs. 0,45), mas é mais
+>   genérico (uma legenda repetida 37 vezes) e mais curto que as
+>   referências (150 vs. 222 caracteres). Tem ~3,75 bilhões de parâmetros
+>   (vs. ~250 milhões do BLIP), treina ~7,5 min por epoch na T4 e não roda
+>   na máquina local. Com 10 epochs a perda de validação ainda caía (0,887
+>   na última), então mais treino talvez ajude um pouco. Implementado em
+>   `src/blip2_experiment.py` (treino e avaliação no Kaggle).
+> - **A limpeza da base ajudou nos fatos**: contra a produção anterior, o
+>   384 novo sobe nos atributos (0,26 → 0,32, intervalo acima de zero),
+>   reconhece 9 das 20 capas duras (vs. 3) e deixou de gerar `"rec. ap"`.
+>   No texto é empate. Como `train.py` não fixa a semente do treino (só a
+>   do split), parte dessa diferença pode ser variação entre execuções.
+> - Todos os BLIP atingem a menor perda de validação na 3ª–4ª epoch e
+>   depois só decoram o treino.
+>
+> **Escolha:** BLIP 384 com encoder congelado — empata com todas as
+> variações e com um modelo 15× maior, e é o único que roda localmente.
+> Promovido a `checkpoints/best/` em 2026-11-13 (anterior preservado em
+> `checkpoints/best_backup_v1_short_code_fix/`).
+>
+> Detalhes de execução: o 384 congelado e o 576 destravado foram
+> avaliados na GPU do Kaggle; os demais BLIP, na CPU local. O 384
+> congelado foi avaliado nos dois ambientes e gerou **as mesmas 192
+> legendas**, então o ambiente não muda o resultado. Dois problemas no
+> script do BLIP-2 corrigidos antes do resultado acima: o Kaggle traz `torchao` 0.10
+> e o `peft` recusa versões abaixo da 0.16 (o notebook desinstala); e o
+> OPT vem configurado pra parar de gerar no `\n`, enquanto o treino ensina
+> a terminar com `</s>` — sem passar o EOS na chamada do `generate`, 161
+> das 192 legendas iam até o limite de 128 tokens repetindo frases
+> (similaridade 0,37).
+>
 > **Outros outliers encontrados (não corrigidos ainda):** ~3,8% dos livros
 > (73 de 1.918) têm legenda bem mais longa que a média (>408 caracteres,
 > acima do limite IQR); dentro desses, uma fração pequena mas real mistura
@@ -94,8 +304,12 @@ overfitting). Use `--no-freeze-vision` em `train.py` para destravar o encoder.
 > bastante pra ambos os lados (ex.: livro1299 vai de 0.06 pra 0.58, livro657
 > cai de 0.96 pra 0.50), mas se cancela na média — não há sinal de que
 > excluir coleções do treino ajude (ou prejudique) a qualidade nos livros
-> normais, pela métrica de similaridade usada. Mantido misturado no treino
-> (mais dado, nenhuma perda medida).
+> normais, pela métrica de similaridade usada. **Atenção:** a flag ficou
+> ligada no notebook do Kaggle depois desse teste, então os retreinos
+> seguintes (os de 2026-11-09 e 2026-11-11, do fix de código curto) também
+> foram treinados **sem** as coleções — o checkpoint de produção atual não
+> tem coleções no treino. Como o teste acima deu empate, isso não muda a
+> qualidade medida.
 >
 > **Bug no split treino/validação do experimento `--exclude-colecoes`
 > (corrigido em 2026-10-28):** a primeira versão de `--exclude-colecoes`
@@ -330,6 +544,17 @@ o download do checkpoint continua manual (passo 4 acima).
 
 ## Próximos passos
 
+- Fixar a semente do treino em `train.py` (hoje só o split é fixo) e
+  repetir cada configuração com 3 sementes — com 192 livros de validação,
+  as diferenças medidas entre modelos (0,01–0,03) ficam no mesmo tamanho
+  da variação esperada entre execuções.
+- Fotos de perto dos defeitos (já em 384) — resolução maior não ajudou e o
+  teto é baixo, porque as fotos do dataset têm só 600×800.
+- Juntar as features de várias fotos do mesmo livro na atenção do decoder
+  (em vez de uma legenda por foto) — o modelo veria o livro inteiro de uma
+  vez.
+- BLIP-2 com mais epochs (a perda de validação ainda caía na 10ª) — só se
+  houver como servir um modelo de ~3,75 bilhões de parâmetros.
 - Avaliar se vale tentar remover a sinopse/dimensões misturadas nos
   outliers mais longos (~1% do dataset) — baixo volume, pode não compensar
   o risco de cortar conteúdo de condição real no meio do parágrafo.
@@ -342,3 +567,7 @@ o download do checkpoint continua manual (passo 4 acima).
   "Limitação conhecida" acima) continua em aberto; a causa raiz mais
   provável ainda é o encoder congelado, mas destravá-lo precisa de uma
   configuração mais cuidadosa do que a tentada até agora.
+- Complementar as métricas com uma semântica (BERTScore, similaridade de
+  embedding de sentença, ou um LLM como juiz) — F1 de palavras e atributos
+  já não dependem da ordem, mas nenhuma das três entende sinônimo
+  ("amarelado" vs. "amarelecido").

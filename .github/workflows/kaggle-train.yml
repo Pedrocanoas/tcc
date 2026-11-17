@@ -19,7 +19,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install kaggle
+      # kaggle importa `six` sem declarar; vinha de carona no python-dateutil < 4.0
+      - run: pip install kaggle six
 
       - name: Push e disparar o kernel no Kaggle
         env:
