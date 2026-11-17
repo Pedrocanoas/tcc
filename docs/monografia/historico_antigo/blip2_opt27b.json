@@ -1,0 +1,56 @@
+{
+  "fonte": "blip2_opt27b (v18, 10 epochs)",
+  "base_de_treino": "antiga (1627 livros, antes do conjunto de teste)",
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 1.5114,
+      "val_loss": 1.2239
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.0487,
+      "val_loss": 1.0833
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.9177,
+      "val_loss": 1.0156
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.8366,
+      "val_loss": 0.9693
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.7664,
+      "val_loss": 0.9443
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.7127,
+      "val_loss": 0.928
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.6597,
+      "val_loss": 0.9155
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.6076,
+      "val_loss": 0.9004
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.554,
+      "val_loss": 0.9017
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.505,
+      "val_loss": 0.887
+    }
+  ]
+}

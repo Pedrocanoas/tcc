@@ -1,0 +1,106 @@
+{
+  "fonte": "blip_384_2camadas (v15, 20 epochs)",
+  "base_de_treino": "antiga (1627 livros, antes do conjunto de teste)",
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 1.9566,
+      "val_loss": 1.5588
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.0048,
+      "val_loss": 1.3226
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.6618,
+      "val_loss": 1.2265
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.416,
+      "val_loss": 1.2097
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.256,
+      "val_loss": 1.2625
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.1539,
+      "val_loss": 1.2629
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.0906,
+      "val_loss": 1.2969
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.0611,
+      "val_loss": 1.3384
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.0437,
+      "val_loss": 1.3658
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.0359,
+      "val_loss": 1.4221
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.0317,
+      "val_loss": 1.4238
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.0288,
+      "val_loss": 1.4767
+    },
+    {
+      "epoch": 13,
+      "train_loss": 0.0324,
+      "val_loss": 1.5045
+    },
+    {
+      "epoch": 14,
+      "train_loss": 0.0346,
+      "val_loss": 1.4799
+    },
+    {
+      "epoch": 15,
+      "train_loss": 0.0305,
+      "val_loss": 1.5453
+    },
+    {
+      "epoch": 16,
+      "train_loss": 0.0302,
+      "val_loss": 1.5407
+    },
+    {
+      "epoch": 17,
+      "train_loss": 0.0279,
+      "val_loss": 1.5426
+    },
+    {
+      "epoch": 18,
+      "train_loss": 0.0209,
+      "val_loss": 1.5438
+    },
+    {
+      "epoch": 19,
+      "train_loss": 0.0216,
+      "val_loss": 1.5513
+    },
+    {
+      "epoch": 20,
+      "train_loss": 0.0167,
+      "val_loss": 1.5587
+    }
+  ]
+}

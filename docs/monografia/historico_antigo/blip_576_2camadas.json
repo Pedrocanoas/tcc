@@ -1,0 +1,56 @@
+{
+  "fonte": "blip_576_2camadas (v16, 10 epochs)",
+  "base_de_treino": "antiga (1627 livros, antes do conjunto de teste)",
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 1.899,
+      "val_loss": 1.5278
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.9776,
+      "val_loss": 1.3042
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.6434,
+      "val_loss": 1.2028
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.412,
+      "val_loss": 1.2374
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.2518,
+      "val_loss": 1.2491
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.148,
+      "val_loss": 1.3049
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.0881,
+      "val_loss": 1.3382
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.0624,
+      "val_loss": 1.3307
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.0472,
+      "val_loss": 1.3775
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.0353,
+      "val_loss": 1.3901
+    }
+  ]
+}
